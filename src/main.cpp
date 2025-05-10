@@ -121,6 +121,7 @@ void loop() {
       delay(100); // дать вспышке загореться
     }
 
+    esp_camera_fb_get();
     camera_fb_t *fb = esp_camera_fb_get();
     if (!fb) {
       if (useFlash) digitalWrite(4, LOW); // выключить вспышку при ошибке

@@ -12,13 +12,28 @@ void ensureBigPixelBuf(size_t size) {
     }
 }
 
+// Helper: crop center 3:2 region from grayscale buffer
+// src: pointer to original buffer (width x height)
+// dst: pointer to output buffer (width x cropHeight)
+// width: image width (320)
+// height: image height (240)
+// cropHeight: cropped height (213)
+void crop_center_3_2(const uint8_t* src, uint8_t* dst, int width, int height, int cropHeight) {
+    int y0 = (height - cropHeight) / 2;
+    for (int y = 0; y < cropHeight; ++y) {
+        memcpy(dst + y * width, src + (y0 + y) * width, width);
+    }
+}
+
 void sendNewBMP(camera_fb_t *fb, WiFiClient &client, bool use8ColorPalette) {
-  const int width = fb->width;
-  const int height = fb->height;
-  const int rowSize = (width + 3) & ~3; // BMP rows are padded to multiple of 4
-  const int paletteSize = use8ColorPalette ? 8 : 256;
-  const int paletteBytes = paletteSize * 4;
-  const int fileSize = 54 + paletteBytes + rowSize * height; // header + palette + pixel data
+  int width = fb->width;
+  int height = fb->height;
+  bool crop3_2 = (width == 320 && height == 240); // QVGA only
+  int cropHeight = crop3_2 ? 213 : height;
+  int rowSize = (width + 3) & ~3; // BMP rows are padded to multiple of 4
+  int paletteSize = use8ColorPalette ? 8 : 256;
+  int paletteBytes = paletteSize * 4;
+  int fileSize = 54 + paletteBytes + rowSize * cropHeight; // header + palette + pixel data
 
   // --- BMP Header (54 bytes) ---
   uint8_t header[54] = {
@@ -28,7 +43,7 @@ void sendNewBMP(camera_fb_t *fb, WiFiClient &client, bool use8ColorPalette) {
     (uint8_t)(54 + paletteBytes), (uint8_t)((54 + paletteBytes) >> 8), (uint8_t)((54 + paletteBytes) >> 16), (uint8_t)((54 + paletteBytes) >> 24), // offset to pixel data
     40, 0, 0, 0,        // DIB header size
     (uint8_t)(width), (uint8_t)(width >> 8), (uint8_t)(width >> 16), (uint8_t)(width >> 24),
-    (uint8_t)(height), (uint8_t)(height >> 8), (uint8_t)(height >> 16), (uint8_t)(height >> 24),
+    (uint8_t)(cropHeight), (uint8_t)(cropHeight >> 8), (uint8_t)(cropHeight >> 16), (uint8_t)(cropHeight >> 24),
     1, 0,               // planes
     8, 0,               // bits per pixel
     0, 0, 0, 0,         // compression = none
@@ -88,16 +103,23 @@ void sendNewBMP(camera_fb_t *fb, WiFiClient &client, bool use8ColorPalette) {
   ensureBigPixelBuf(width * height);
   makeBigPixels8x8(fb->buf, width, height, g_bigPixelBuf);
 
+  // --- Crop if needed ---
+  uint8_t* bmpBuf = g_bigPixelBuf;
+  if (crop3_2) {
+    static uint8_t croppedBuf[320 * 213];
+    crop_center_3_2(g_bigPixelBuf, croppedBuf, width, height, cropHeight);
+    bmpBuf = croppedBuf;
+  }
+
   // --- Image data (bottom to top) ---
   uint8_t rowBuf[rowSize];
-  for (int y = height - 1; y >= 0; y--) {
+  for (int y = cropHeight - 1; y >= 0; y--) {
     size_t offset = y * width;
     if (use8ColorPalette) {
-      // Threshold mapping, unrolled 2 pixels at a time
       int x = 0;
       for (; x + 1 < width; x += 2) {
-        uint8_t v0 = g_bigPixelBuf[offset + x];
-        uint8_t v1 = g_bigPixelBuf[offset + x + 1];
+        uint8_t v0 = bmpBuf[offset + x];
+        uint8_t v1 = bmpBuf[offset + x + 1];
         uint8_t idx0, idx1;
         if (v0 < 32) idx0 = 0; else if (v0 < 64) idx0 = 1; else if (v0 < 96) idx0 = 2; else if (v0 < 128) idx0 = 3; else if (v0 < 160) idx0 = 4; else if (v0 < 192) idx0 = 5; else if (v0 < 224) idx0 = 6; else idx0 = 7;
         if (v1 < 32) idx1 = 0; else if (v1 < 64) idx1 = 1; else if (v1 < 96) idx1 = 2; else if (v1 < 128) idx1 = 3; else if (v1 < 160) idx1 = 4; else if (v1 < 192) idx1 = 5; else if (v1 < 224) idx1 = 6; else idx1 = 7;
@@ -105,15 +127,14 @@ void sendNewBMP(camera_fb_t *fb, WiFiClient &client, bool use8ColorPalette) {
         rowBuf[x+1] = idx1;
       }
       if (x < width) {
-        uint8_t v = g_bigPixelBuf[offset + x];
+        uint8_t v = bmpBuf[offset + x];
         uint8_t idx;
         if (v < 32) idx = 0; else if (v < 64) idx = 1; else if (v < 96) idx = 2; else if (v < 128) idx = 3; else if (v < 160) idx = 4; else if (v < 192) idx = 5; else if (v < 224) idx = 6; else idx = 7;
         rowBuf[x] = idx;
       }
     } else {
-      memcpy(rowBuf, g_bigPixelBuf + offset, width);
+      memcpy(rowBuf, bmpBuf + offset, width);
     }
-    // Padding
     for (int pad = width; pad < rowSize; pad++) rowBuf[pad] = 0;
     client.write(rowBuf, rowSize);
   }

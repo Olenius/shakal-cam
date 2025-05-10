@@ -7,5 +7,6 @@
 void sendNewBMP(camera_fb_t *fb, WiFiClient &client, bool use8ColorPalette);
 void makeBigPixels8x8(const uint8_t* src, int srcWidth, int srcHeight, uint8_t* dst);
 void ensureBigPixelBuf(size_t size);
+void crop_center_3_2(const uint8_t* src, uint8_t* dst, int width, int height, int cropHeight);
 
 #endif // SHAKAL_CAM_H
