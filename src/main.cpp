@@ -146,7 +146,6 @@ void setup() {
   }
 
   // Инициализация SPIFFS
-  SPIFFS.format();
   if (!SPIFFS.begin(true)) {
     Serial.println("SPIFFS Mount Failed");
     return;
