@@ -1,6 +1,8 @@
 #include "esp_camera.h"
 #include <WiFi.h>
 #include "shakal_cam.h"
+#include "FS.h"
+#include "SPIFFS.h"
 
 #define CAM_PIN_PWDN 32
 #define CAM_PIN_RESET -1 //software reset will be performed
@@ -31,6 +33,63 @@ const char* password = "lublukolu";
 WiFiServer server(80);
 
 void startCameraServer();
+
+int g_photoIndex = 0;
+
+void savePhotoToSPIFFS(const uint8_t* data, size_t len, String& filename) {
+  if (!SPIFFS.exists("/photos")) SPIFFS.mkdir("/photos");
+  filename = "/photos/photo_" + String(g_photoIndex++) + ".bmp";
+  File file = SPIFFS.open(filename, FILE_WRITE);
+  if (file) {
+    file.write(data, len);
+    file.close();
+  }
+}
+
+void sendPhotoFromSPIFFS(WiFiClient& client, const String& filename) {
+  Serial.println("Try to open file: " + filename);
+  
+  File file = SPIFFS.open("/photos/" + filename, FILE_READ);
+  if (!file) {
+    client.println("HTTP/1.1 404 Not Found");
+    client.println("Content-Type: text/plain");
+    client.println();
+    client.println("Photo not found");
+    return;
+  }
+  client.println("HTTP/1.1 200 OK");
+  client.println("Content-Type: image/bmp");
+  client.println("Connection: close");
+  client.println();
+  uint8_t buf[512];
+  while (file.available()) {
+    size_t len = file.read(buf, sizeof(buf));
+    client.write(buf, len);
+  }
+  file.close();
+}
+
+void sendGalleryPage(WiFiClient& client) {
+  File root = SPIFFS.open("/photos");
+  client.println("HTTP/1.1 200 OK");
+  client.println("Content-Type: text/html");
+  client.println();
+  client.println("<!DOCTYPE html><html><head><meta charset='UTF-8'><title>Gallery</title></head><body><h1>Gallery</h1>");
+  File file = root.openNextFile();
+  while (file) {
+    String name = file.name();
+    if (name.endsWith(".bmp")) {
+      // Use the filename as-is for the link and display
+      client.print("<div><a href='/photo/");
+      client.print(name);
+      client.print("'>");
+      client.print(name);
+      client.println("</a></div>");
+    }
+    file = root.openNextFile();
+  }
+  client.println("</body></html>");
+}
 
 void setup() {
   Serial.begin(115200);
@@ -86,6 +145,13 @@ void setup() {
     return;
   }
 
+  // Инициализация SPIFFS
+  SPIFFS.format();
+  if (!SPIFFS.begin(true)) {
+    Serial.println("SPIFFS Mount Failed");
+    return;
+  }
+
   // Запуск сервера
   server.begin();
 }
@@ -135,6 +201,24 @@ void loop() {
   
     Serial.printf("Got frame: %dx%d, format: %d\n", fb->width, fb->height, fb->format);
 
+    // --- Capture and send BMP ---
+    // Buffer to store BMP in memory
+    const size_t maxBmpSize = 54 + 8*4 + 320*213 + 320*4; // header+palette+pixels+row padding
+    uint8_t* bmpBuf = (uint8_t*)malloc(maxBmpSize);
+    WiFiClient memClient;
+    struct MemClient : public WiFiClient {
+      uint8_t* buf;
+      size_t pos;
+      size_t cap;
+      MemClient(uint8_t* b, size_t c) : buf(b), pos(0), cap(c) {}
+      size_t write(uint8_t v) override { if (pos<cap) buf[pos++]=v; return 1; }
+      size_t write(const uint8_t* d, size_t l) override { size_t n = (l+pos>cap)?cap-pos:l; memcpy(buf+pos,d,n); pos+=n; return n; }
+    } memClientImpl(bmpBuf, maxBmpSize);
+    sendNewBMP(fb, memClientImpl, true);
+    String filename;
+    savePhotoToSPIFFS(bmpBuf, memClientImpl.pos, filename);
+    free(bmpBuf);
+
     // Отправка заголовка перед BMP-данными
     client.println("HTTP/1.1 200 OK");
     client.println("Content-Type: image/bmp");
@@ -148,6 +232,24 @@ void loop() {
     client.stop();
     Serial.println("BMP sent to client");
     return;
+  } else if (request.indexOf("GET /gallery") >= 0) {
+    sendGalleryPage(client);
+    client.stop();
+    return;
+  } else if (request.indexOf("GET /photo/") >= 0) {
+    int idx = request.indexOf("/photo/");
+    if (idx >= 0) {
+      int spaceIdx = request.indexOf(' ', idx + 7);
+      String fname = (spaceIdx > 0) ? request.substring(idx + 7, spaceIdx) : request.substring(idx + 7);
+      fname.trim();
+      int lastSlash = fname.lastIndexOf('/');
+      if (lastSlash >= 0) {
+        fname = fname.substring(lastSlash + 1);
+      }
+      sendPhotoFromSPIFFS(client, fname);
+      client.stop();
+      return;
+    }
   } else {
     // Отправка HTML-страницы
     client.println("HTTP/1.1 200 OK");
