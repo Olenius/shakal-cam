@@ -132,7 +132,7 @@ void loop() {
     client.println("Connection: close");
     client.println();
 
-    sendNewBMP(fb, client);
+    sendNewBMP(fb, client, true);
     
     esp_camera_fb_return(fb);
     client.stop();
