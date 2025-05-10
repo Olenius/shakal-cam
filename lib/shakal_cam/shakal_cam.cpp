@@ -20,9 +20,8 @@ void ensureBigPixelBuf(size_t size) {
 // cropHeight: cropped height (213)
 void crop_center_3_2(const uint8_t* src, uint8_t* dst, int width, int height, int cropHeight) {
     int y0 = (height - cropHeight) / 2;
-    for (int y = 0; y < cropHeight; ++y) {
-        memcpy(dst + y * width, src + (y0 + y) * width, width);
-    }
+    // Optimize: single memcpy if region is contiguous
+    memcpy(dst, src + y0 * width, width * cropHeight);
 }
 
 void sendNewBMP(camera_fb_t *fb, WiFiClient &client, bool use8ColorPalette) {
@@ -140,29 +139,28 @@ void sendNewBMP(camera_fb_t *fb, WiFiClient &client, bool use8ColorPalette) {
   }
 }
 
-// Create a new buffer with 8x8 big pixels (pixelation effect)
+// Optimized: Create a new buffer with 8x8 big pixels (pixelation effect)
 // src: pointer to original grayscale buffer
 // srcWidth, srcHeight: dimensions of the original image
 // dst: pointer to output buffer (must be preallocated with (srcWidth/8*8)*(srcHeight/8*8) bytes)
 void makeBigPixels8x8(const uint8_t* src, int srcWidth, int srcHeight, uint8_t* dst) {
-    int blockSize = 8;
-    int dstWidth = (srcWidth / blockSize) * blockSize;
-    int dstHeight = (srcHeight / blockSize) * blockSize;
+    const int blockSize = 8;
+    const int dstWidth = (srcWidth / blockSize) * blockSize;
+    const int dstHeight = (srcHeight / blockSize) * blockSize;
     for (int by = 0; by < dstHeight; by += blockSize) {
         for (int bx = 0; bx < dstWidth; bx += blockSize) {
-            // Compute average for this 8x8 block
             int sum = 0;
+            const uint8_t* blockPtr = src + by * srcWidth + bx;
+            // Unroll loop for 8x8 block for better performance
             for (int y = 0; y < blockSize; ++y) {
-                for (int x = 0; x < blockSize; ++x) {
-                    sum += src[(by + y) * srcWidth + (bx + x)];
-                }
+                const uint8_t* rowPtr = blockPtr + y * srcWidth;
+                sum += rowPtr[0] + rowPtr[1] + rowPtr[2] + rowPtr[3] +
+                       rowPtr[4] + rowPtr[5] + rowPtr[6] + rowPtr[7];
             }
-            uint8_t avg = sum / (blockSize * blockSize);
-            // Fill 8x8 block in dst with avg
+            uint8_t avg = sum / 64;
+            // Fill 8x8 block in dst with avg (use memset for each row)
             for (int y = 0; y < blockSize; ++y) {
-                for (int x = 0; x < blockSize; ++x) {
-                    dst[(by + y) * dstWidth + (bx + x)] = avg;
-                }
+                memset(dst + (by + y) * dstWidth + bx, avg, blockSize);
             }
         }
     }
