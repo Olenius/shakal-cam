@@ -1,5 +1,17 @@
 #include "shakal_cam.h"
 
+// Reusable buffer for big pixels (allocated once, reused)
+static uint8_t* g_bigPixelBuf = nullptr;
+static size_t g_bigPixelBufSize = 0;
+
+void ensureBigPixelBuf(size_t size) {
+    if (!g_bigPixelBuf || g_bigPixelBufSize < size) {
+        if (g_bigPixelBuf) free(g_bigPixelBuf);
+        g_bigPixelBuf = (uint8_t*)malloc(size);
+        g_bigPixelBufSize = size;
+    }
+}
+
 void sendNewBMP(camera_fb_t *fb, WiFiClient &client, bool use8ColorPalette) {
   const int width = fb->width;
   const int height = fb->height;
@@ -31,22 +43,39 @@ void sendNewBMP(camera_fb_t *fb, WiFiClient &client, bool use8ColorPalette) {
   client.write(header, 54);
 
   if (use8ColorPalette) {
-    // --- 8-color palette (BGR0 order) ---
     uint8_t palette[8][4] = {
-      {0,   0,   0,   0},   // Black
-      {0,   0, 255,   0},   // Red
-      {0, 255,   0,   0},   // Green
-      {255, 0,   0,   0},   // Blue
-      {0, 255, 255, 0},     // Yellow
-      {255,255,  0,  0},    // Cyan
-      {255, 0, 255, 0},     // Magenta
-      {255,255,255, 0}      // White
+      // {18, 18, 18, 0},     // Очень тёмно-серый (почти чёрный)
+      // {45, 45, 48, 0},     // Тёмно-серый с холодным оттенком
+      // {75, 75, 78, 0},     // Глубокий графитовый
+      // {110, 110, 115, 0},  // Мягкий серый
+      // {145, 145, 150, 0},  // Серо-стальной
+      // {180, 180, 185, 0},  // Светло-серый с лёгким синим
+      // {220, 220, 225, 0},  // Почти белый, но с глубиной
+      // {255, 255, 255, 0}   // Чисто белый
+
+      // {100, 70, 160, 0},    // Глубокий «плёночный» фиолетовый  
+      // {130, 90, 190, 0},    // Тёплый винтажный фиолетово-синий  
+      // {160, 110, 215, 0},   // Плавный приглушённый фиолетовый  
+      // {190, 140, 224, 0},   // Фейдовый сиреневый  
+      // {220, 170, 222, 0},   // Лавандовый с налётом пыли  
+      // {239, 200, 217, 0},   // Светлый винтажный розовый  
+      // {247, 225, 211, 0},   // Тёплый пыльный розовый  
+      // {255, 248, 210, 0}    // Очень светлый кремово-жёлтый
+
+      // // pixless pallete 1
+      {13, 43, 69, 0},     // Очень тёмный индиго  
+      {32, 60, 86, 0},     // Глубокий синий  
+      {84, 78, 104, 0},    // Темный фиолетово-синий  
+      {141, 105, 122, 0},  // Пыльный лиловый  
+      {208, 129, 89, 0},   // Тёплый коричнево-оранжевый  
+      {255, 170, 94, 0},   // Оранжевый ретро  
+      {255, 212, 163, 0},  // Светлый персиковый  
+      {255, 236, 214, 0}   // Очень светлый кремовый  
     };
     for (int i = 0; i < 8; i++) {
       client.write(palette[i], 4);
     }
   } else {
-    // --- Grayscale palette (256 * 4 bytes) ---
     for (int i = 0; i < 256; i++) {
       client.write((uint8_t)i); // B
       client.write((uint8_t)i); // G
@@ -56,42 +85,37 @@ void sendNewBMP(camera_fb_t *fb, WiFiClient &client, bool use8ColorPalette) {
   }
 
   // --- Big pixel buffer allocation and processing ---
-  uint8_t* bigPixelBuf = (uint8_t*)malloc(width * height);
-  if (bigPixelBuf) {
-    makeBigPixels8x8(fb->buf, width, height, bigPixelBuf);
-  } else {
-    bigPixelBuf = fb->buf;
-  }
+  ensureBigPixelBuf(width * height);
+  makeBigPixels8x8(fb->buf, width, height, g_bigPixelBuf);
 
   // --- Image data (bottom to top) ---
+  uint8_t rowBuf[rowSize];
   for (int y = height - 1; y >= 0; y--) {
     size_t offset = y * width;
     if (use8ColorPalette) {
-      // Map grayscale to 8-color palette using thresholds
-      // 0-31: black, 32-63: red, 64-95: green, 96-127: blue, 128-159: yellow, 160-191: cyan, 192-223: magenta, 224-255: white
-      for (int x = 0; x < width; x++) {
-        uint8_t v = bigPixelBuf[offset + x];
+      // Threshold mapping, unrolled 2 pixels at a time
+      int x = 0;
+      for (; x + 1 < width; x += 2) {
+        uint8_t v0 = g_bigPixelBuf[offset + x];
+        uint8_t v1 = g_bigPixelBuf[offset + x + 1];
+        uint8_t idx0, idx1;
+        if (v0 < 32) idx0 = 0; else if (v0 < 64) idx0 = 1; else if (v0 < 96) idx0 = 2; else if (v0 < 128) idx0 = 3; else if (v0 < 160) idx0 = 4; else if (v0 < 192) idx0 = 5; else if (v0 < 224) idx0 = 6; else idx0 = 7;
+        if (v1 < 32) idx1 = 0; else if (v1 < 64) idx1 = 1; else if (v1 < 96) idx1 = 2; else if (v1 < 128) idx1 = 3; else if (v1 < 160) idx1 = 4; else if (v1 < 192) idx1 = 5; else if (v1 < 224) idx1 = 6; else idx1 = 7;
+        rowBuf[x] = idx0;
+        rowBuf[x+1] = idx1;
+      }
+      if (x < width) {
+        uint8_t v = g_bigPixelBuf[offset + x];
         uint8_t idx;
-        if (v < 32) idx = 0;         // Black
-        else if (v < 64) idx = 1;    // Red
-        else if (v < 96) idx = 2;    // Green
-        else if (v < 128) idx = 3;   // Blue
-        else if (v < 160) idx = 4;   // Yellow
-        else if (v < 192) idx = 5;   // Cyan
-        else if (v < 224) idx = 6;   // Magenta
-        else idx = 7;                // White
-        client.write(&idx, 1);
+        if (v < 32) idx = 0; else if (v < 64) idx = 1; else if (v < 96) idx = 2; else if (v < 128) idx = 3; else if (v < 160) idx = 4; else if (v < 192) idx = 5; else if (v < 224) idx = 6; else idx = 7;
+        rowBuf[x] = idx;
       }
     } else {
-      client.write(bigPixelBuf + offset, width); // grayscale row
+      memcpy(rowBuf, g_bigPixelBuf + offset, width);
     }
-    for (int pad = width; pad < rowSize; pad++) {
-      client.write((uint8_t)0); // padding
-    }
-  }
-
-  if (bigPixelBuf != fb->buf) {
-    free(bigPixelBuf);
+    // Padding
+    for (int pad = width; pad < rowSize; pad++) rowBuf[pad] = 0;
+    client.write(rowBuf, rowSize);
   }
 }
 

@@ -113,8 +113,17 @@ void loop() {
 
   // Захват фото
   if (request.indexOf("GET /capture") >= 0) {
+    // Включить вспышку (flash) если нужно
+    bool useFlash = false;
+    if (useFlash) {
+      pinMode(4, OUTPUT); // GPIO4 — flash LED
+      digitalWrite(4, HIGH);
+      delay(100); // дать вспышке загореться
+    }
+
     camera_fb_t *fb = esp_camera_fb_get();
     if (!fb) {
+      if (useFlash) digitalWrite(4, LOW); // выключить вспышку при ошибке
       Serial.println("Camera capture failed");
       client.println("HTTP/1.1 500 Internal Server Error");
       client.println("Content-Type: text/plain");
@@ -135,6 +144,7 @@ void loop() {
     sendNewBMP(fb, client, true);
     
     esp_camera_fb_return(fb);
+    if (useFlash) digitalWrite(4, LOW); // выключить вспышку после снимка
     client.stop();
     Serial.println("BMP sent to client");
     return;
@@ -146,15 +156,7 @@ void loop() {
     client.println("<!DOCTYPE html><html>");
     client.println("<head><meta charset='UTF-8'><title>ESP32-CAM</title></head>");
     client.println("<body><h1>ESP32-CAM Live</h1>");
-    client.println("<img id='photo' src='/capture' width='320' height='240'><br>");
-    client.println("<button onclick='takePhoto()'>📸 Snap</button>");
-    client.println("<script>");
-    client.println("function takePhoto() {");
-    client.println("  const img = document.getElementById('photo');");
-    client.println("  img.src = '/capture?' + new Date().getTime();");
-    client.println("}");
-    client.println("setInterval(takePhoto, 50);"); // автообновление каждые 5 секунд
-    client.println("</script></body></html>");
+    client.println("</body></html>");
   }
 
   delay(1); // небольшая задержка
