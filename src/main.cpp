@@ -244,6 +244,14 @@ void loop() {
     flashState = !flashState;
     digitalWrite(4, flashState ? HIGH : LOW);
     delay(100); // дать вспышке загореться
+    
+    client.println("HTTP/1.1 200 OK");
+    client.println("Content-Type: text/html");
+    client.println("Connection: close");
+    client.println();
+    client.println("<html><body></body></html>");
+    client.stop();
+    return;
   } else if (request.indexOf("GET /photo/") >= 0) {
     int idx = request.indexOf("/photo/");
     if (idx >= 0) {
