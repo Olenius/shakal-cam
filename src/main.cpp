@@ -26,10 +26,10 @@
 // Настройки Wi-Fi
 // const char* ssid = "Н's Galaxy A22";
 // const char* password = "lublukolu";
-// const char* ssid = "shkubu";
-// const char* password = "18061994";
-const char* ssid = "iPhone NS";
-const char* password = "lublukolu";
+const char* ssid = "shkubu";
+const char* password = "18061994";
+// const char* ssid = "iPhone NS";
+// const char* password = "lublukolu";
 
 WiFiServer server(80);
 
@@ -239,7 +239,7 @@ void loop() {
     sendGalleryPage(client);
     client.stop();
     return;
-  } else if (request.indexOf("GET /flash/")) {
+  } else if (request.indexOf("GET /flash") >= 0) {
     static bool flashState = false;
     flashState = !flashState;
     digitalWrite(4, flashState ? HIGH : LOW);
@@ -260,10 +260,16 @@ void loop() {
     }
   } else {
     // Отправка встроенного HTML из index_html.h
+    String html = getIndexHTML();
     client.println("HTTP/1.1 200 OK");
     client.println("Content-Type: text/html");
+    client.print("Content-Length: ");
+    client.println(html.length());
+    client.println("Connection: close");
     client.println();
-    client.print(getIndexHTML());
+    client.print(html);
+    client.stop();
+    return;
   }
 
   delay(1); // небольшая задержка
