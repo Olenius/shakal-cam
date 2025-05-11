@@ -263,7 +263,7 @@ void loop() {
     client.println("HTTP/1.1 200 OK");
     client.println("Content-Type: text/html");
     client.println();
-    client.print(INDEX_HTML);
+    client.print(getIndexHTML());
   }
 
   delay(1); // небольшая задержка
