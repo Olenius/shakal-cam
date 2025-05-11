@@ -3,6 +3,7 @@
 #include "shakal_cam.h"
 #include "FS.h"
 #include "SPIFFS.h"
+#include "index_html.h"
 
 #define CAM_PIN_PWDN 32
 #define CAM_PIN_RESET -1 //software reset will be performed
@@ -149,6 +150,8 @@ void setup() {
     return;
   }
 
+  pinMode(4, OUTPUT); // GPIO4 — flash LED
+
   // Инициализация SPIFFS
   if (true) {
     SPIFFS.format();
@@ -204,23 +207,8 @@ void loop() {
 
   // Захват фото
   if (request.indexOf("GET /capture") >= 0) {
-    // Включить вспышку (flash) если нужно
-    bool useFlash = false;
-    if (useFlash) {
-      pinMode(4, OUTPUT); // GPIO4 — flash LED
-      digitalWrite(4, HIGH);
-      delay(100); // дать вспышке загореться
-    }
-
-    // // Сбросить буфер, чтобы освободить память
-    // for (int i = 0; i < 3; ++i) { 
-    //   camera_fb_t *fb = esp_camera_fb_get();
-    //   if (fb) esp_camera_fb_return(fb);
-    // }
-
     camera_fb_t *fb = esp_camera_fb_get();
     if (!fb) {
-      if (useFlash) digitalWrite(4, LOW); // выключить вспышку при ошибке
       Serial.println("Camera capture failed");
       client.println("HTTP/1.1 500 Internal Server Error");
       client.println("Content-Type: text/plain");
@@ -235,12 +223,14 @@ void loop() {
     // --- Только отправка PNG клиенту, без сохранения в файл ---
     client.println("HTTP/1.1 200 OK");
     client.println("Content-Type: image/png");
+    client.println("Access-Control-Allow-Origin: *");
+    client.println("Access-Control-Allow-Methods: GET, POST");
+    client.println("Access-Control-Allow-Headers: Content-Type");
     client.println("Connection: close");
     client.println();
+    
     sendNewPNGWithPalette(fb, client);
     esp_camera_fb_return(fb);
-
-    if (useFlash) digitalWrite(4, LOW); // выключить вспышку после снимка
 
     client.stop();
     Serial.println("PNG sent to client (no file save)");
@@ -249,6 +239,11 @@ void loop() {
     sendGalleryPage(client);
     client.stop();
     return;
+  } else if (request.indexOf("GET /flash/")) {
+    static bool flashState = false;
+    flashState = !flashState;
+    digitalWrite(4, flashState ? HIGH : LOW);
+    delay(100); // дать вспышке загореться
   } else if (request.indexOf("GET /photo/") >= 0) {
     int idx = request.indexOf("/photo/");
     if (idx >= 0) {
@@ -264,14 +259,11 @@ void loop() {
       return;
     }
   } else {
-    // Отправка HTML-страницы
+    // Отправка встроенного HTML из index_html.h
     client.println("HTTP/1.1 200 OK");
     client.println("Content-Type: text/html");
     client.println();
-    client.println("<!DOCTYPE html><html>");
-    client.println("<head><meta charset='UTF-8'><title>ESP32-CAM</title></head>");
-    client.println("<body><h1>ESP32-CAM Live</h1>");
-    client.println("</body></html>");
+    client.print(INDEX_HTML);
   }
 
   delay(1); // небольшая задержка
