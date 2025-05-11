@@ -38,7 +38,7 @@ int g_photoIndex = 0;
 
 void savePhotoToSPIFFS(const uint8_t* data, size_t len, String& filename) {
   if (!SPIFFS.exists("/photos")) SPIFFS.mkdir("/photos");
-  filename = "/photos/photo_" + String(g_photoIndex++) + ".bmp";
+  filename = "/photos/photo_" + String(g_photoIndex++) + ".png";
   File file = SPIFFS.open(filename, FILE_WRITE);
   if (file) {
     file.write(data, len);
@@ -48,8 +48,7 @@ void savePhotoToSPIFFS(const uint8_t* data, size_t len, String& filename) {
 
 void sendPhotoFromSPIFFS(WiFiClient& client, const String& filename) {
   Serial.println("Try to open file: " + filename);
-  
-  File file = SPIFFS.open("/photos/" + filename, FILE_READ);
+  File file = SPIFFS.open(filename, FILE_READ); // исправлено: filename уже содержит полный путь
   if (!file) {
     client.println("HTTP/1.1 404 Not Found");
     client.println("Content-Type: text/plain");
@@ -58,7 +57,7 @@ void sendPhotoFromSPIFFS(WiFiClient& client, const String& filename) {
     return;
   }
   client.println("HTTP/1.1 200 OK");
-  client.println("Content-Type: image/bmp");
+  client.println("Content-Type: image/png");
   client.println("Connection: close");
   client.println();
   uint8_t buf[512];
@@ -83,7 +82,7 @@ void sendGalleryPage(WiFiClient& client) {
   File file = root.openNextFile();
   while (file) {
     String name = file.name();
-    if (name.endsWith(".bmp")) {
+    if (name.endsWith(".png")) {
       size_t fsize = file.size();
       client.print("<div><a href='/photo/");
       client.print(name);
@@ -166,7 +165,7 @@ void setup() {
     int maxIdx = -1;
     while (file) {
       String name = file.name();
-      if (name.startsWith("/photos/photo_") && name.endsWith(".bmp")) {
+      if (name.startsWith("/photos/photo_") && name.endsWith(".png")) {
         int start = String("/photos/photo_").length();
         int end = name.length() - 4; // ".bmp"
         String numStr = name.substring(start, end);
@@ -213,11 +212,11 @@ void loop() {
       delay(100); // дать вспышке загореться
     }
 
-    // Сбросить буфер, чтобы освободить память
-    for (int i = 0; i < 3; ++i) { 
-      camera_fb_t *fb = esp_camera_fb_get();
-      if (fb) esp_camera_fb_return(fb);
-    }
+    // // Сбросить буфер, чтобы освободить память
+    // for (int i = 0; i < 3; ++i) { 
+    //   camera_fb_t *fb = esp_camera_fb_get();
+    //   if (fb) esp_camera_fb_return(fb);
+    // }
 
     camera_fb_t *fb = esp_camera_fb_get();
     if (!fb) {
@@ -233,42 +232,18 @@ void loop() {
   
     Serial.printf("Got frame: %dx%d, format: %d\n", fb->width, fb->height, fb->format);
 
-    // --- Capture and send BMP ---
-    // Create filename for new photo
-    if (!SPIFFS.exists("/photos")) SPIFFS.mkdir("/photos");
-    String filename = "/photos/photo_" + String(g_photoIndex++) + ".bmp";
-    File file = SPIFFS.open(filename, FILE_WRITE);
-    if (!file) {
-      Serial.println("Failed to open file for writing");
-      client.println("HTTP/1.1 500 Internal Server Error");
-      client.println("Content-Type: text/plain");
-      client.println();
-      client.println("Failed to save photo");
-      esp_camera_fb_return(fb);
-      if (useFlash) digitalWrite(4, LOW);
-      client.stop();
-      return;
-    }
-    // MultiClient writes to both SPIFFS file and network client
-    struct MultiClient : public WiFiClient {
-      WiFiClient& net;
-      File& file;
-      MultiClient(WiFiClient& n, File& f) : net(n), file(f) {}
-      size_t write(uint8_t v) override { file.write(&v, 1); return net.write(v); }
-      size_t write(const uint8_t* d, size_t l) override { file.write(d, l); return net.write(d, l); }
-    };
-    // Send HTTP header before BMP data
+    // --- Только отправка PNG клиенту, без сохранения в файл ---
     client.println("HTTP/1.1 200 OK");
-    client.println("Content-Type: image/bmp");
+    client.println("Content-Type: image/png");
     client.println("Connection: close");
     client.println();
-    MultiClient multi(client, file);
-    sendNewBMP(fb, multi, true);
-    file.close();
+    sendNewPNGWithPalette(fb, client);
     esp_camera_fb_return(fb);
+
     if (useFlash) digitalWrite(4, LOW); // выключить вспышку после снимка
+
     client.stop();
-    Serial.println("BMP sent to client and saved to SPIFFS");
+    Serial.println("PNG sent to client (no file save)");
     return;
   } else if (request.indexOf("GET /gallery") >= 0) {
     sendGalleryPage(client);
@@ -284,7 +259,7 @@ void loop() {
       if (lastSlash >= 0) {
         fname = fname.substring(lastSlash + 1);
       }
-      sendPhotoFromSPIFFS(client, fname);
+      sendPhotoFromSPIFFS(client, "/photos/" + fname);
       client.stop();
       return;
     }

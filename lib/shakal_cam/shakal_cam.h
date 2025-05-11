@@ -5,6 +5,8 @@
 #include <WiFi.h>
 
 void sendNewBMP(camera_fb_t *fb, WiFiClient &client, bool use8ColorPalette);
+void sendNewPNG(camera_fb_t *fb, WiFiClient &client);
+void sendNewPNGWithPalette(camera_fb_t *fb, WiFiClient &client);
 void makeBigPixels8x8(const uint8_t* src, int srcWidth, int srcHeight, uint8_t* dst);
 void ensureBigPixelBuf(size_t size);
 void crop_center_3_2(const uint8_t* src, uint8_t* dst, int width, int height, int cropHeight);
