@@ -217,6 +217,8 @@ void loop() {
   static bool buttonPressed = false;
   
   bool buttonState = digitalRead(BUTTON_PIN);
+
+  unsigned long currentTime = millis();
   
   // Если состояние кнопки изменилось, сбрасываем таймер дребезга
   if (buttonState != lastButtonState) {
