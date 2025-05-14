@@ -26,6 +26,8 @@
 
 // Определение пина кнопки
 #define BUTTON_PIN 2  // Меняем на GPIO2, который часто используется для кнопок
+// Определение пина встроенного светодиода
+#define BUILTIN_LED 33  // Встроенный светодиод на ESP32-CAM (не вспышка)
 
 // Настройки Wi-Fi
 // const char* ssid = "Н's Galaxy A22";
@@ -49,6 +51,20 @@ String generateRandomHash() {
     hash += alphanum[random(0, sizeof(alphanum) - 1)];
   }
   return hash;
+}
+
+// Функция для двойного мигания светодиодом
+void blinkLedTwice() {
+  // Первая вспышка
+  digitalWrite(BUILTIN_LED, LOW);
+  delay(100);
+  digitalWrite(BUILTIN_LED, HIGH);
+  delay(100);
+  
+  // Вторая вспышка
+  digitalWrite(BUILTIN_LED, LOW);
+  delay(100);
+  digitalWrite(BUILTIN_LED, HIGH);
 }
 
 void savePhotoToSPIFFS(const uint8_t* data, size_t len, String& filename) {
@@ -172,11 +188,13 @@ void setup() {
   }
 
   pinMode(4, OUTPUT); // GPIO4 — flash LED
+  pinMode(BUILTIN_LED, OUTPUT); // Инициализируем встроенный светодиод
+  digitalWrite(BUILTIN_LED, HIGH); // Выключаем встроенный светодиод по умолчанию
 
-  // Инициализация SPIFFS
-  if (true) {
-    SPIFFS.format();
-  }
+  // // Инициализация SPIFFS
+  // if (true) {
+  //   SPIFFS.format();
+  // }
   if (!SPIFFS.begin(true)) {
     Serial.println("SPIFFS Mount Failed");
     return;
@@ -222,9 +240,6 @@ void loop() {
   
   // Если состояние кнопки изменилось, сбрасываем таймер дребезга
   if (buttonState != lastButtonState) {
-    Serial.printf("Button state changed: %s -> %s\n", 
-      lastButtonState == HIGH ? "HIGH" : "LOW", 
-      buttonState == HIGH ? "HIGH" : "LOW");
     lastDebounceTime = currentTime;
   }
   
@@ -235,8 +250,8 @@ void loop() {
       buttonPressed = true;
       Serial.println("Button pressed - taking photo");
       
-      // Включаем вспышку, если это необходимо
-      // digitalWrite(4, HIGH); // Раскомментируйте для использования вспышки
+      // Мигаем светодиодом дважды перед захватом фото
+      blinkLedTwice();
       
       camera_fb_t *fb = esp_camera_fb_get();
       if (fb) {
@@ -258,9 +273,6 @@ void loop() {
       } else {
         Serial.println("Camera capture failed");
       }
-      
-      // Выключаем вспышку
-      // digitalWrite(4, LOW); // Раскомментируйте для использования вспышки
     }
     else if (buttonState == HIGH) {
       // Сбрасываем флаг нажатия только когда кнопка отпущена
