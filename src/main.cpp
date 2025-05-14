@@ -6,8 +6,9 @@
 #include "index_html.h"
 #include <ctime>
 
+// Camera pin definitions
 #define CAM_PIN_PWDN 32
-#define CAM_PIN_RESET -1 //software reset will be performed
+#define CAM_PIN_RESET -1  // Software reset will be performed
 #define CAM_PIN_XCLK 0
 #define CAM_PIN_SIOD 26
 #define CAM_PIN_SIOC 27
@@ -24,26 +25,31 @@
 #define CAM_PIN_HREF 23
 #define CAM_PIN_PCLK 22
 
-// Определение пина кнопки
-#define BUTTON_PIN 2  // Меняем на GPIO2, который часто используется для кнопок
-// Определение пина встроенного светодиода
-#define BUILTIN_LED 33  // Встроенный светодиод на ESP32-CAM (не вспышка)
+// Button and LED pin definitions
+#define BUTTON_PIN 2      // Hardware button on GPIO2
+#define BUILTIN_LED 33    // Built-in LED on ESP32-CAM (not the flash)
+#define FLASH_LED 4       // Flash LED on GPIO4
 
-// Настройки Wi-Fi
-// const char* ssid = "Н's Galaxy A22";
-// const char* password = "lublukolu";
+// Wi-Fi settings
 const char* ssid = "shkubu";
 const char* password = "18061994";
+// Alternative Wi-Fi configurations (commented out)
+// const char* ssid = "Н's Galaxy A22";
+// const char* password = "lublukolu";
 // const char* ssid = "iPhone NS";
 // const char* password = "lublukolu";
 
+// HTTP server on port 80
 WiFiServer server(80);
 
-void startCameraServer();
-
+// Global variables
 int g_photoIndex = 0;
+const unsigned long DEBOUNCE_DELAY = 100;  // Button debounce delay in milliseconds
 
-// Функция генерации случайного хеша для имени файла
+/**
+ * Generates a random 8-character hexadecimal hash for filenames
+ * @return String with random hex hash
+ */
 String generateRandomHash() {
   static const char alphanum[] = "0123456789abcdef";
   String hash = "";
@@ -53,24 +59,30 @@ String generateRandomHash() {
   return hash;
 }
 
-// Функция для двойного мигания светодиодом
+/**
+ * Blinks the built-in LED twice to indicate operation
+ */
 void blinkLedTwice() {
-  // Первая вспышка
   digitalWrite(BUILTIN_LED, LOW);
   delay(100);
   digitalWrite(BUILTIN_LED, HIGH);
   delay(100);
-  
-  // Вторая вспышка
   digitalWrite(BUILTIN_LED, LOW);
   delay(100);
   digitalWrite(BUILTIN_LED, HIGH);
 }
 
+/**
+ * Saves a photo to the SPIFFS filesystem with a random filename
+ * 
+ * @param data Pointer to image data
+ * @param len Length of image data
+ * @param filename Reference to store the generated filename
+ */
 void savePhotoToSPIFFS(const uint8_t* data, size_t len, String& filename) {
   if (!SPIFFS.exists("/photos")) SPIFFS.mkdir("/photos");
   
-  // Используем случайный хеш для имени файла
+  // Use random hash for filename
   String hash = generateRandomHash();
   filename = "/photos/img_" + hash + ".png";
   
@@ -84,9 +96,15 @@ void savePhotoToSPIFFS(const uint8_t* data, size_t len, String& filename) {
   }
 }
 
+/**
+ * Sends a photo from SPIFFS to the client
+ * 
+ * @param client WiFiClient to send the photo to
+ * @param filename Full path to the photo file
+ */
 void sendPhotoFromSPIFFS(WiFiClient& client, const String& filename) {
   Serial.println("Try to open file: " + filename);
-  File file = SPIFFS.open(filename, FILE_READ); // исправлено: filename уже содержит полный путь
+  File file = SPIFFS.open(filename, FILE_READ);
   if (!file) {
     client.println("HTTP/1.1 404 Not Found");
     client.println("Content-Type: text/plain");
@@ -94,10 +112,12 @@ void sendPhotoFromSPIFFS(WiFiClient& client, const String& filename) {
     client.println("Photo not found");
     return;
   }
+  
   client.println("HTTP/1.1 200 OK");
   client.println("Content-Type: image/png");
   client.println("Connection: close");
   client.println();
+  
   uint8_t buf[512];
   while (file.available()) {
     size_t len = file.read(buf, sizeof(buf));
@@ -106,17 +126,26 @@ void sendPhotoFromSPIFFS(WiFiClient& client, const String& filename) {
   file.close();
 }
 
+/**
+ * Sends a gallery page with links to all photos
+ * 
+ * @param client WiFiClient to send the page to
+ */
 void sendGalleryPage(WiFiClient& client) {
   File root = SPIFFS.open("/photos");
   size_t total = SPIFFS.totalBytes();
   size_t used = SPIFFS.usedBytes();
   size_t free = total > used ? total - used : 0;
   float percent = total > 0 ? (used * 100.0) / total : 0.0;
+  
   client.println("HTTP/1.1 200 OK");
   client.println("Content-Type: text/html");
   client.println();
   client.println("<!DOCTYPE html><html><head><meta charset='UTF-8'><title>Gallery</title></head><body><h1>Gallery</h1>");
-  client.printf("<div><b>[ %u KB / %u KB ] (%.2f%%, FREE: %u KB)</b></div>\n", (unsigned)(used/1024), (unsigned)(total/1024), percent, (unsigned)(free/1024));
+  client.printf("<div><b>[ %u KB / %u KB ] (%.2f%%, FREE: %u KB)</b></div>\n", 
+                (unsigned)(used/1024), (unsigned)(total/1024), 
+                percent, (unsigned)(free/1024));
+  
   File file = root.openNextFile();
   while (file) {
     String name = file.name();
@@ -133,6 +162,11 @@ void sendGalleryPage(WiFiClient& client) {
   client.println("</body></html>");
 }
 
+/**
+ * Sends a JSON list of all photos in the filesystem
+ * 
+ * @param client WiFiClient to send the JSON to
+ */
 void sendPhotoListJSON(WiFiClient& client) {
   File root = SPIFFS.open("/photos");
   size_t total = SPIFFS.totalBytes();
@@ -140,7 +174,7 @@ void sendPhotoListJSON(WiFiClient& client) {
   size_t free = total > used ? total - used : 0;
   float percent = total > 0 ? (used * 100.0) / total : 0.0;
   
-  // Create a JSON string manually since ArduinoJson library might not be available
+  // Create a JSON string manually
   String json = "{\"files\":[";
   
   File file = root.openNextFile();
@@ -180,6 +214,8 @@ void sendPhotoListJSON(WiFiClient& client) {
 
 void setup() {
   Serial.begin(115200);
+  
+  // Connect to WiFi
   WiFi.begin(ssid, password);
   Serial.print("Connecting to Wi-Fi");
   while (WiFi.status() != WL_CONNECTED) {
@@ -192,6 +228,7 @@ void setup() {
   Serial.print("ESP32-CAM IP address: ");
   Serial.println(WiFi.localIP());
 
+  // Configure camera
   camera_config_t config = {
     .pin_pwdn = CAM_PIN_PWDN,
     .pin_reset = CAM_PIN_RESET,
@@ -211,45 +248,42 @@ void setup() {
     .pin_href = CAM_PIN_HREF,
     .pin_pclk = CAM_PIN_PCLK,
 
-    //XCLK 20MHz or 10MHz for OV2640 double FPS (Experimental)
+    // XCLK 20MHz or 10MHz for OV2640 double FPS (Experimental)
     .xclk_freq_hz = 20000000,
     .ledc_timer = LEDC_TIMER_0,
     .ledc_channel = LEDC_CHANNEL_0,
 
-    .pixel_format = PIXFORMAT_GRAYSCALE, //YUV422,GRAYSCALE,RGB565,JPEG
-    .frame_size = FRAMESIZE_QVGA,    //QQVGA-UXGA, For ESP32, do not use sizes above QVGA when not JPEG. The performance of the ESP32-S series has improved a lot, but JPEG mode always gives better frame rates.
+    .pixel_format = PIXFORMAT_GRAYSCALE,  // YUV422, GRAYSCALE, RGB565, JPEG
+    .frame_size = FRAMESIZE_QVGA,        // QQVGA-UXGA, For ESP32 avoid sizes above QVGA when not JPEG
 
-    // .jpeg_quality = 10, //0-63, for OV series camera sensors, lower number means higher quality
-    .fb_count = 1,       //When jpeg mode is used, if fb_count more than one, the driver will work in continuous mode.
+    // .jpeg_quality = 10,  // 0-63, for OV sensors lower number = higher quality
+    .fb_count = 1,          // When JPEG mode is used, if fb_count > 1 the driver works in continuous mode
     .grab_mode = CAMERA_GRAB_WHEN_EMPTY,
   };
 
-
-  // Инициализация камеры
+  // Initialize camera
   esp_err_t err = esp_camera_init(&config);
   if (err != ESP_OK) {
     Serial.printf("Camera init failed with error 0x%x (%s)\n", err, esp_err_to_name(err));
     return;
   }
 
-  pinMode(4, OUTPUT); // GPIO4 — flash LED
-  pinMode(BUILTIN_LED, OUTPUT); // Инициализируем встроенный светодиод
-  digitalWrite(BUILTIN_LED, HIGH); // Выключаем встроенный светодиод по умолчанию
+  // Initialize GPIO pins
+  pinMode(FLASH_LED, OUTPUT);   // Flash LED
+  pinMode(BUILTIN_LED, OUTPUT); // Built-in LED
+  digitalWrite(BUILTIN_LED, HIGH); // Turn off built-in LED by default
 
-  // // Инициализация SPIFFS
-  // if (true) {
-  //   SPIFFS.format();
-  // }
+  // Initialize SPIFFS
   if (!SPIFFS.begin(true)) {
     Serial.println("SPIFFS Mount Failed");
     return;
   }
 
-  // Инициализация пина кнопки
+  // Initialize button with internal pull-up resistor
   pinMode(BUTTON_PIN, INPUT_PULLUP);
   Serial.println("Button initialized on GPIO " + String(BUTTON_PIN));
 
-  // --- Find last photo index ---
+  // Find last photo index for sequential naming
   if (SPIFFS.exists("/photos")) {
     File root = SPIFFS.open("/photos");
     File file = root.openNextFile();
@@ -258,7 +292,7 @@ void setup() {
       String name = file.name();
       if (name.startsWith("/photos/photo_") && name.endsWith(".png")) {
         int start = String("/photos/photo_").length();
-        int end = name.length() - 4; // ".bmp"
+        int end = name.length() - 4; // ".png"
         String numStr = name.substring(start, end);
         int idx = numStr.toInt();
         if (idx > maxIdx) maxIdx = idx;
@@ -268,58 +302,59 @@ void setup() {
     g_photoIndex = maxIdx + 1;
   }
 
-  // Загружаем настройки палитры из SPIFFS при старте
-  // Если не удалось загрузить, будет использована палитра по умолчанию
+  // Load color palette from SPIFFS or use default
   if (!loadPaletteFromSPIFFS()) {
     Serial.println("Using default color palette");
   } else {
     Serial.println("Color palette loaded from SPIFFS");
   }
 
-  // Запуск сервера
+  // Start HTTP server
   server.begin();
+  Serial.println("HTTP server started");
 }
 
 void loop() {
-  // Проверяем нажатие аппаратной кнопки для захвата фото
+  // Hardware button handling with debouncing
   static bool lastButtonState = HIGH;
   static unsigned long lastDebounceTime = 0;
-  static unsigned long lastDebugTime = 0;
   static bool buttonPressed = false;
   
   bool buttonState = digitalRead(BUTTON_PIN);
-
   unsigned long currentTime = millis();
   
-  // Если состояние кнопки изменилось, сбрасываем таймер дребезга
+  // Reset debounce timer if button state changed
   if (buttonState != lastButtonState) {
     lastDebounceTime = currentTime;
   }
   
-  // Проверяем, прошло ли достаточно времени после последнего изменения состояния
-  if ((currentTime - lastDebounceTime) > 100) {  // Увеличил время антидребезга до 100 мс
-    // Если состояние стабилизировалось и кнопка нажата (LOW)
+  // Check if state is stable after debounce delay
+  if ((currentTime - lastDebounceTime) > DEBOUNCE_DELAY) {
+    // If button is pressed (LOW due to pull-up) and we haven't registered the press yet
     if (buttonState == LOW && !buttonPressed) {
       buttonPressed = true;
       Serial.println("Button pressed - taking photo");
       
-      // Мигаем светодиодом дважды перед захватом фото
+      // Blink LED twice before capture
       blinkLedTwice();
       
+      // First capture and discard (to stabilize camera)
       camera_fb_t *fb = esp_camera_fb_get();
       esp_camera_fb_return(fb);
+      
+      // Second capture for actual use
       fb = esp_camera_fb_get();
       if (fb) {
-        // Сгенерировать PNG данные
+        // Generate PNG data with the current palette
         uint8_t* pngData = NULL;
         size_t pngSize = 0;
         generatePNGWithPaletteToRam(fb, &pngData, &pngSize);
         
         if (pngData && pngSize > 0) {
-          // Сохраняем фото в SPIFFS
+          // Save photo to filesystem
           String filename;
           savePhotoToSPIFFS(pngData, pngSize, filename);
-          free(pngData); // Освобождаем память
+          free(pngData); // Free allocated memory
         } else {
           Serial.println("Failed to generate PNG data");
         }
@@ -330,19 +365,20 @@ void loop() {
       }
     }
     else if (buttonState == HIGH) {
-      // Сбрасываем флаг нажатия только когда кнопка отпущена
+      // Reset press flag when button is released
       buttonPressed = false;
     }
   }
   
   lastButtonState = buttonState;
   
-  // Обработка HTTP запросов
+  // HTTP server handling
   WiFiClient client = server.available();
   if (!client) return;
 
   Serial.println("New Client.");
-  // Ждём, пока клиент отправит запрос (с небольшим таймаутом)
+  
+  // Wait for client request with timeout
   unsigned long timeout = millis() + 2000;
   while (!client.available() && millis() < timeout) {
     delay(1);
@@ -354,12 +390,14 @@ void loop() {
     return;
   }
 
+  // Read the first line of the request
   String request = client.readStringUntil('\r');
   Serial.println("Request: " + request);
-  client.read(); // Пропустить '\n'
+  client.read(); // Skip '\n'
 
-  // Захват фото
+  // Route handling
   if (request.indexOf("GET /capture") >= 0) {
+    // Capture and send photo without saving
     camera_fb_t *fb = esp_camera_fb_get();
     if (!fb) {
       Serial.println("Camera capture failed");
@@ -370,10 +408,10 @@ void loop() {
       client.stop();
       return;
     }
-  
+    
     Serial.printf("Got frame: %dx%d, format: %d\n", fb->width, fb->height, fb->format);
 
-    // --- Только отправка PNG клиенту, без сохранения в файл ---
+    // Send PNG directly to client without saving to file
     client.println("HTTP/1.1 200 OK");
     client.println("Content-Type: image/png");
     client.println("Access-Control-Allow-Origin: *");
@@ -389,7 +427,7 @@ void loop() {
     Serial.println("PNG sent to client (no file save)");
     return;
   } else if (request.indexOf("GET /gallery") >= 0) {
-    // Use the new gallery HTML function
+    // Gallery page
     String html = getGalleryHTML();
     client.println("HTTP/1.1 200 OK");
     client.println("Content-Type: text/html");
@@ -401,51 +439,50 @@ void loop() {
     client.stop();
     return;
   } else if (request.indexOf("GET /photo-list") >= 0) {
-    // Handle the new JSON API endpoint for photo listing
+    // JSON API endpoint for photo listing
     sendPhotoListJSON(client);
     client.stop();
     return;
   } else if (request.indexOf("POST /delete-all-photos") >= 0) {
-    // Handle delete all photos request
+    // Delete all photos
     Serial.println("Deleting all photos...");
     
-    // Step 1: Collect all png filenames in an array
+    // Step 1: Collect all PNG filenames in an array
     const int MAX_FILES = 100; // Maximum number of files to delete
     String filesToDelete[MAX_FILES];
     int fileCount = 0;
     
     File root = SPIFFS.open("/photos");
     
-    // First collect all filenames
+    // Collect all filenames first
     File file = root.openNextFile();
     while (file && fileCount < MAX_FILES) {
       String name = file.name();
       if (name.endsWith(".png")) {
-        // Store the full path to each file
         filesToDelete[fileCount] = name;
         fileCount++;
       }
       file = root.openNextFile();
     }
     
-    // Close all open files and the directory
     root.close();
     
-    // Step 2: Delete each file one by one
+    // Step 2: Delete each file
     int deletedCount = 0;
     
     Serial.printf("Found %d files to delete\n", fileCount);
     
-    // Simple direct deletion approach
     for (int i = 0; i < fileCount; i++) {
       String fullPath = filesToDelete[i];
       Serial.println("Trying to delete: " + fullPath);
       
-      SPIFFS.remove("/photos/" + filesToDelete[i]);
-      deletedCount++;
+      // Just use the full path directly for delete
+      if (SPIFFS.remove(fullPath)) {
+        deletedCount++;
+      }
     }
     
-    // Send simple JSON response
+    // Send JSON response
     client.println("HTTP/1.1 200 OK");
     client.println("Content-Type: application/json");
     client.println("Access-Control-Allow-Origin: *");
@@ -459,10 +496,11 @@ void loop() {
     client.stop();
     return;
   } else if (request.indexOf("GET /flash") >= 0) {
+    // Toggle flash LED
     static bool flashState = false;
     flashState = !flashState;
-    digitalWrite(4, flashState ? HIGH : LOW);
-    delay(100); // дать вспышке загореться
+    digitalWrite(FLASH_LED, flashState ? HIGH : LOW);
+    delay(100); // Let the flash stabilize
     
     client.println("HTTP/1.1 200 OK");
     client.println("Content-Type: text/html");
@@ -472,6 +510,7 @@ void loop() {
     client.stop();
     return;
   } else if (request.indexOf("GET /photo/") >= 0) {
+    // Serve specific photo
     int idx = request.indexOf("/photo/");
     if (idx >= 0) {
       int spaceIdx = request.indexOf(' ', idx + 7);
@@ -486,7 +525,7 @@ void loop() {
       return;
     }
   } else if (request.indexOf("GET /settings") >= 0) {
-    // Страница настроек
+    // Settings page
     String html = getSettingsHTML();
     client.println("HTTP/1.1 200 OK");
     client.println("Content-Type: text/html");
@@ -498,7 +537,7 @@ void loop() {
     client.stop();
     return;
   } else if (request.indexOf("GET /get-palette") >= 0) {
-    // Получить текущую палитру в формате JSON
+    // Get current palette as JSON
     String paletteJson = getPaletteJSON();
     client.println("HTTP/1.1 200 OK");
     client.println("Content-Type: application/json");
@@ -511,7 +550,7 @@ void loop() {
     client.stop();
     return;
   } else if (request.indexOf("POST /save-palette") >= 0) {
-    // Сохранение палитры
+    // Save palette settings
     String jsonData = "";
     while (client.available()) {
       char c = client.read();
@@ -539,7 +578,7 @@ void loop() {
     client.stop();
     return;
   } else if (request.indexOf("POST /reset-palette") >= 0) {
-    // Сбросить палитру к значениям по умолчанию
+    // Reset palette to default
     resetPaletteToDefault();
     String paletteJson = getPaletteJSON();
     
@@ -554,7 +593,7 @@ void loop() {
     client.stop();
     return;
   } else {
-    // Отправка встроенного HTML из index_html.h
+    // Default: serve main HTML page
     String html = getIndexHTML();
     client.println("HTTP/1.1 200 OK");
     client.println("Content-Type: text/html");
@@ -567,7 +606,6 @@ void loop() {
     return;
   }
 
-  delay(1); // небольшая задержка
   client.stop();
   Serial.println("Client disconnected.");
 }

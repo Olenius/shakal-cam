@@ -1,9 +1,12 @@
 const fs = require("fs");
 const { minify } = require("html-minifier-terser");
 
-async function minifyHtml() {
+async function minifyHtml(filename) {
   try {
-    const html = fs.readFileSync("index.html", "utf8");
+    const inputFile = `${filename}.html`;
+    const outputFile = `../../assets/web/${filename}.min.html`;
+    
+    const html = fs.readFileSync(inputFile, "utf8");
     const minified = await minify(html, {
       collapseWhitespace: true,
       removeComments: true,
@@ -14,11 +17,21 @@ async function minifyHtml() {
       removeOptionalTags: true,
     });
 
-    fs.writeFileSync("../../assets/web/index.min.html", minified);
-    console.log("HTML minified successfully!");
+    fs.writeFileSync(outputFile, minified);
+    console.log(`${inputFile} minified successfully!`);
   } catch (err) {
-    console.error("Error minifying HTML:", err);
+    console.error(`Error minifying ${filename}.html:`, err);
   }
 }
 
-minifyHtml();
+async function processAllFiles() {
+  const files = ["index", "gallery", "settings"];
+  
+  for (const file of files) {
+    await minifyHtml(file);
+  }
+  
+  console.log("All HTML files have been minified!");
+}
+
+processAllFiles();
