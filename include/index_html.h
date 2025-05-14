@@ -156,6 +156,7 @@ const char* getGalleryHTML() {
                 <h1>Shakal Gallery</h1>
                 <div class="header-buttons">
                     <button id="deleteAllBtn" class="button button-danger">Delete All Photos</button>
+                    <a href="/settings" class="button">Settings</a>
                     <a href="/" class="button">Back to Camera</a>
                 </div>
             </div>
@@ -376,10 +377,6 @@ const char* getSettingsHTML() {
                     position: relative;
                     cursor: pointer;
                 }
-                .color-label {
-                    font-size: 12px;
-                    margin-top: 5px;
-                }
                 .color-input {
                     opacity: 0;
                     position: absolute;
@@ -519,7 +516,6 @@ const char* getSettingsHTML() {
                          
                         block.appendChild(input);
                         colorBlock.appendChild(block);
-                        colorBlock.appendChild(label);
                         container.appendChild(colorBlock);
                     });
                     

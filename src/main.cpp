@@ -307,6 +307,8 @@ void loop() {
       blinkLedTwice();
       
       camera_fb_t *fb = esp_camera_fb_get();
+      esp_camera_fb_return(fb);
+      fb = esp_camera_fb_get();
       if (fb) {
         // Сгенерировать PNG данные
         uint8_t* pngData = NULL;
