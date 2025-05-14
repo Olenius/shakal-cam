@@ -281,4 +281,416 @@ const char* getGalleryHTML() {
     return html;
 }
 
+const char* getSettingsHTML() {
+    static const char html[] = R"rawliteral(
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Shakal Cam Settings</title>
+            <style>
+                :root {
+                    --background-color: #000;
+                    --text-color: #fff;
+                    --accent-color: #444;
+                    --success-color: #28a745;
+                }
+                body, html {
+                    margin: 0;
+                    padding: 0;
+                    background-color: var(--background-color);
+                    color: var(--text-color);
+                    font-family: monospace;
+                }
+                .header {
+                    padding: 20px;
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                }
+                .header h1 {
+                    margin: 0;
+                }
+                .header-buttons {
+                    display: flex;
+                    gap: 10px;
+                }
+                .button {
+                    background-color: var(--text-color);
+                    color: var(--background-color);
+                    border: none;
+                    padding: 10px 20px;
+                    font-size: 18px;
+                    font-weight: 700;
+                    cursor: pointer;
+                    font-family: monospace;
+                    text-decoration: none;
+                    display: inline-block;
+                    box-shadow: 5px 5px 0 0 rgba(0,0,0,0.2);
+                }
+                .button:hover {
+                    box-shadow: 4px 4px 0 0 rgba(0,0,0,0.3);
+                }
+                .button:active {
+                    box-shadow: 0 0 0 0 rgba(0,0,0,0.3);
+                    transform: translate(5px,5px);
+                }
+                .button-success {
+                    background-color: var(--success-color);
+                    color: #fff;
+                }
+                .settings-container {
+                    padding: 20px;
+                    max-width: 800px;
+                    margin: 0 auto;
+                }
+                .settings-section {
+                    margin-bottom: 30px;
+                    background-color: var(--accent-color);
+                    padding: 20px;
+                    border-radius: 4px;
+                }
+                .settings-section h2 {
+                    margin-top: 0;
+                    margin-bottom: 15px;
+                    border-bottom: 1px solid var(--text-color);
+                    padding-bottom: 10px;
+                }
+                .palette-container {
+                    display: flex;
+                    flex-wrap: wrap;
+                    gap: 10px;
+                    margin-bottom: 20px;
+                }
+                .color-picker {
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    gap: 5px;
+                }
+                .color-block {
+                    width: 60px;
+                    height: 60px;
+                    border: 2px solid var(--text-color);
+                    position: relative;
+                    cursor: pointer;
+                }
+                .color-label {
+                    font-size: 12px;
+                    margin-top: 5px;
+                }
+                .color-input {
+                    opacity: 0;
+                    position: absolute;
+                    top: 0;
+                    left: 0;
+                    width: 100%;
+                    height: 100%;
+                    cursor: pointer;
+                }
+                .preview-section {
+                    margin-top: 20px;
+                    display: flex;
+                    justify-content: center;
+                    flex-direction: column;
+                    align-items: center;
+                }
+                .preview-gradient {
+                    width: 100%;
+                    height: 60px;
+                    background: linear-gradient(to right, #000, #222, #444, #666, #888, #aaa, #ccc, #fff);
+                    margin-bottom: 20px;
+                }
+                .preview-color-values {
+                    display: flex;
+                    flex-wrap: wrap;
+                    gap: 10px;
+                    font-size: 12px;
+                    margin-top: 10px;
+                    width: 100%;
+                }
+                .preview-color-value {
+                    background: rgba(255,255,255,0.1);
+                    padding: 5px;
+                    border-radius: 3px;
+                }
+                .notification {
+                    position: fixed;
+                    top: 20px;
+                    right: 20px;
+                    padding: 10px 20px;
+                    background-color: var(--success-color);
+                    color: white;
+                    border-radius: 4px;
+                    box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+                    transform: translateY(-100px);
+                    opacity: 0;
+                    transition: transform 0.3s, opacity 0.3s;
+                }
+                .notification.show {
+                    transform: translateY(0);
+                    opacity: 1;
+                }
+                @media (max-width: 600px) {
+                    .header {
+                        flex-direction: column;
+                        gap: 10px;
+                    }
+                    .header-buttons {
+                        width: 100%;
+                        flex-direction: column;
+                    }
+                    .button {
+                        width: 100%;
+                        text-align: center;
+                    }
+                    .palette-container {
+                        justify-content: center;
+                    }
+                }
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <h1>Settings</h1>
+                <div class="header-buttons">
+                    <button id="resetPaletteBtn" class="button">Reset Palette</button>
+                    <button id="savePaletteBtn" class="button button-success">Save Changes</button>
+                    <a href="/" class="button">Back to Camera</a>
+                    <a href="/gallery" class="button">Gallery</a>
+                </div>
+            </div>
+
+            <div class="settings-container">
+                <div class="settings-section">
+                    <h2>Color Palette Settings</h2>
+                    <p>Customize the 8-color palette used for image processing:</p>
+                    
+                    <div class="palette-container" id="palette-container">
+                        <!-- Generated by JavaScript -->
+                    </div>
+                    
+                    <div class="preview-section">
+                        <h3>Preview</h3>
+                        <div class="preview-gradient" id="preview-gradient"></div>
+                        <div class="preview-color-values" id="preview-color-values">
+                            <!-- Generated by JavaScript -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="notification" class="notification">Settings saved successfully!</div>
+
+            <script>
+                // Global palette data
+                let palette = [
+                    {r: 13, g: 43, b: 69, a: 255},  // Dark Blue
+                    {r: 32, g: 60, b: 86, a: 255},  // Blue
+                    {r: 84, g: 78, b: 104, a: 255}, // Purple
+                    {r: 141, g: 105, b: 122, a: 255}, // Lilac
+                    {r: 208, g: 129, b: 89, a: 255}, // Orange
+                    {r: 255, g: 170, b: 94, a: 255}, // Light Orange
+                    {r: 255, g: 212, b: 163, a: 255}, // Beige
+                    {r: 255, g: 236, b: 214, a: 255}  // Light Beige
+                ];
+                
+                // Initialize the palette UI
+                function initPalette() {
+                    const container = document.getElementById('palette-container');
+                    container.innerHTML = '';
+                    
+                    // Create color picker for each palette entry
+                    palette.forEach((color, index) => {
+                        const colorBlock = document.createElement('div');
+                        colorBlock.className = 'color-picker';
+                        
+                        const block = document.createElement('div');
+                        block.className = 'color-block';
+                        block.style.backgroundColor = `rgba(${color.r}, ${color.g}, ${color.b}, ${color.a/255})`;
+                        
+                        const input = document.createElement('input');
+                        input.type = 'color';
+                        input.className = 'color-input';
+                        input.value = rgbToHex(color.r, color.g, color.b);
+                        input.dataset.index = index;
+                        input.addEventListener('input', handleColorChange);
+                         
+                        block.appendChild(input);
+                        colorBlock.appendChild(block);
+                        colorBlock.appendChild(label);
+                        container.appendChild(colorBlock);
+                    });
+                    
+                    updatePreviewGradient();
+                    updateColorValues();
+                }
+                
+                // Handle color change from color picker
+                function handleColorChange(e) {
+                    const index = parseInt(e.target.dataset.index);
+                    const hexColor = e.target.value;
+                    const rgb = hexToRgb(hexColor);
+                    
+                    palette[index] = {
+                        r: rgb.r,
+                        g: rgb.g,
+                        b: rgb.b,
+                        a: 255
+                    };
+                    
+                    // Update the color block
+                    const block = e.target.parentElement;
+                    block.style.backgroundColor = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 1)`;
+                    
+                    updatePreviewGradient();
+                    updateColorValues();
+                }
+                
+                // Convert RGB to HEX
+                function rgbToHex(r, g, b) {
+                    return '#' + [r, g, b].map(x => {
+                        const hex = x.toString(16);
+                        return hex.length === 1 ? '0' + hex : hex;
+                    }).join('');
+                }
+                
+                // Convert HEX to RGB
+                function hexToRgb(hex) {
+                    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+                    return result ? {
+                        r: parseInt(result[1], 16),
+                        g: parseInt(result[2], 16),
+                        b: parseInt(result[3], 16)
+                    } : null;
+                }
+                
+                // Update the preview gradient
+                function updatePreviewGradient() {
+                    const gradient = document.getElementById('preview-gradient');
+                    const stops = palette.map((color, index) => {
+                        const percent = (index / (palette.length - 1)) * 100;
+                        return `rgba(${color.r}, ${color.g}, ${color.b}, ${color.a/255}) ${percent}%`;
+                    }).join(', ');
+                    
+                    gradient.style.background = `linear-gradient(to right, ${stops})`;
+                }
+                
+                // Update the color values display
+                function updateColorValues() {
+                    const container = document.getElementById('preview-color-values');
+                    container.innerHTML = '';
+                    
+                    palette.forEach((color, index) => {
+                        const div = document.createElement('div');
+                        div.className = 'preview-color-value';
+                        div.textContent = `${index}: RGB(${color.r}, ${color.g}, ${color.b})`;
+                        div.style.color = getBrightness(color) < 128 ? '#fff' : '#000';
+                        div.style.backgroundColor = `rgba(${color.r}, ${color.g}, ${color.b}, ${color.a/255})`;
+                        container.appendChild(div);
+                    });
+                }
+                
+                // Calculate perceived brightness (for text contrast)
+                function getBrightness(color) {
+                    return Math.sqrt(
+                        0.299 * (color.r * color.r) +
+                        0.587 * (color.g * color.g) +
+                        0.114 * (color.b * color.b)
+                    );
+                }
+                
+                // Save the palette to the device
+                async function savePalette() {
+                    try {
+                        const response = await fetch('/save-palette', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({ palette })
+                        });
+                        
+                        if (response.ok) {
+                            showNotification('Settings saved successfully!');
+                        } else {
+                            showNotification('Failed to save settings', 'error');
+                        }
+                    } catch (error) {
+                        console.error('Error saving palette:', error);
+                        showNotification('Error saving settings', 'error');
+                    }
+                }
+                
+                // Reset palette to default values
+                async function resetPalette() {
+                    try {
+                        const response = await fetch('/reset-palette', {
+                            method: 'POST'
+                        });
+                        
+                        if (response.ok) {
+                            // Update the local palette with the response
+                            const data = await response.json();
+                            if (data.palette) {
+                                palette = data.palette;
+                                initPalette(); // Refresh UI
+                                showNotification('Palette reset to default values');
+                            }
+                        } else {
+                            showNotification('Failed to reset palette', 'error');
+                        }
+                    } catch (error) {
+                        console.error('Error resetting palette:', error);
+                        showNotification('Error resetting palette', 'error');
+                    }
+                }
+                
+                // Load the current palette from the device
+                async function loadPalette() {
+                    try {
+                        const response = await fetch('/get-palette');
+                        if (response.ok) {
+                            const data = await response.json();
+                            if (data.palette) {
+                                palette = data.palette;
+                            }
+                        }
+                    } catch (error) {
+                        console.error('Error loading palette:', error);
+                    }
+                    
+                    initPalette();
+                }
+                
+                // Show notification
+                function showNotification(message, type = 'success') {
+                    const notification = document.getElementById('notification');
+                    notification.textContent = message;
+                    notification.style.backgroundColor = type === 'success' ? 'var(--success-color)' : 'var(--danger-color)';
+                    notification.classList.add('show');
+                    
+                    setTimeout(() => {
+                        notification.classList.remove('show');
+                    }, 3000);
+                }
+                
+                // Attach event listeners
+                document.addEventListener('DOMContentLoaded', () => {
+                    // Load palette first
+                    loadPalette();
+                    
+                    // Setup button event listeners
+                    document.getElementById('savePaletteBtn').addEventListener('click', savePalette);
+                    document.getElementById('resetPaletteBtn').addEventListener('click', resetPalette);
+                });
+            </script>
+        </body>
+        </html>
+    )rawliteral";
+
+    return html;
+}
+
 #endif // INDEX_HTML_H

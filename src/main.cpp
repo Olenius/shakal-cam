@@ -268,6 +268,14 @@ void setup() {
     g_photoIndex = maxIdx + 1;
   }
 
+  // Загружаем настройки палитры из SPIFFS при старте
+  // Если не удалось загрузить, будет использована палитра по умолчанию
+  if (!loadPaletteFromSPIFFS()) {
+    Serial.println("Using default color palette");
+  } else {
+    Serial.println("Color palette loaded from SPIFFS");
+  }
+
   // Запуск сервера
   server.begin();
 }
@@ -475,6 +483,74 @@ void loop() {
       client.stop();
       return;
     }
+  } else if (request.indexOf("GET /settings") >= 0) {
+    // Страница настроек
+    String html = getSettingsHTML();
+    client.println("HTTP/1.1 200 OK");
+    client.println("Content-Type: text/html");
+    client.print("Content-Length: ");
+    client.println(html.length());
+    client.println("Connection: close");
+    client.println();
+    client.print(html);
+    client.stop();
+    return;
+  } else if (request.indexOf("GET /get-palette") >= 0) {
+    // Получить текущую палитру в формате JSON
+    String paletteJson = getPaletteJSON();
+    client.println("HTTP/1.1 200 OK");
+    client.println("Content-Type: application/json");
+    client.println("Access-Control-Allow-Origin: *");
+    client.println("Connection: close");
+    client.print("Content-Length: ");
+    client.println(paletteJson.length());
+    client.println();
+    client.print(paletteJson);
+    client.stop();
+    return;
+  } else if (request.indexOf("POST /save-palette") >= 0) {
+    // Сохранение палитры
+    String jsonData = "";
+    while (client.available()) {
+      char c = client.read();
+      jsonData += c;
+    }
+    
+    bool success = false;
+    if (jsonData.length() > 0) {
+      success = updatePaletteFromJSON(jsonData);
+      if (success) {
+        savePaletteToSPIFFS();
+      }
+    }
+    
+    client.println("HTTP/1.1 200 OK");
+    client.println("Content-Type: application/json");
+    client.println("Access-Control-Allow-Origin: *");
+    client.println("Connection: close");
+    client.print("Content-Length: ");
+    
+    String response = "{\"success\":" + String(success ? "true" : "false") + "}";
+    client.println(response.length());
+    client.println();
+    client.print(response);
+    client.stop();
+    return;
+  } else if (request.indexOf("POST /reset-palette") >= 0) {
+    // Сбросить палитру к значениям по умолчанию
+    resetPaletteToDefault();
+    String paletteJson = getPaletteJSON();
+    
+    client.println("HTTP/1.1 200 OK");
+    client.println("Content-Type: application/json");
+    client.println("Access-Control-Allow-Origin: *");
+    client.println("Connection: close");
+    client.print("Content-Length: ");
+    client.println(paletteJson.length());
+    client.println();
+    client.print(paletteJson);
+    client.stop();
+    return;
   } else {
     // Отправка встроенного HTML из index_html.h
     String html = getIndexHTML();
