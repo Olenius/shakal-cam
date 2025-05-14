@@ -133,6 +133,51 @@ void sendGalleryPage(WiFiClient& client) {
   client.println("</body></html>");
 }
 
+void sendPhotoListJSON(WiFiClient& client) {
+  File root = SPIFFS.open("/photos");
+  size_t total = SPIFFS.totalBytes();
+  size_t used = SPIFFS.usedBytes();
+  size_t free = total > used ? total - used : 0;
+  float percent = total > 0 ? (used * 100.0) / total : 0.0;
+  
+  // Create a JSON string manually since ArduinoJson library might not be available
+  String json = "{\"files\":[";
+  
+  File file = root.openNextFile();
+  bool isFirst = true;
+  while (file) {
+    String name = file.name();
+    if (name.endsWith(".png")) {
+      if (!isFirst) {
+        json += ",";
+      }
+      size_t fsize = file.size();
+      json += "{\"name\":\"";
+      json += name;
+      json += "\",\"size\":";
+      json += fsize;
+      json += "}";
+      isFirst = false;
+    }
+    file = root.openNextFile();
+  }
+  
+  json += "],";
+  json += "\"storage\":\"";
+  json += String((unsigned)(used/1024)) + " KB / " + String((unsigned)(total/1024)) + " KB (";
+  json += String(percent, 2) + "%, FREE: " + String((unsigned)(free/1024)) + " KB)";
+  json += "\"}";
+  
+  client.println("HTTP/1.1 200 OK");
+  client.println("Content-Type: application/json");
+  client.println("Access-Control-Allow-Origin: *");
+  client.println("Connection: close");
+  client.print("Content-Length: ");
+  client.println(json.length());
+  client.println();
+  client.print(json);
+}
+
 void setup() {
   Serial.begin(115200);
   WiFi.begin(ssid, password);
@@ -334,7 +379,20 @@ void loop() {
     Serial.println("PNG sent to client (no file save)");
     return;
   } else if (request.indexOf("GET /gallery") >= 0) {
-    sendGalleryPage(client);
+    // Use the new gallery HTML function
+    String html = getGalleryHTML();
+    client.println("HTTP/1.1 200 OK");
+    client.println("Content-Type: text/html");
+    client.print("Content-Length: ");
+    client.println(html.length());
+    client.println("Connection: close");
+    client.println();
+    client.print(html);
+    client.stop();
+    return;
+  } else if (request.indexOf("GET /photo-list") >= 0) {
+    // Handle the new JSON API endpoint for photo listing
+    sendPhotoListJSON(client);
     client.stop();
     return;
   } else if (request.indexOf("GET /flash") >= 0) {
