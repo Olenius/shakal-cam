@@ -4,6 +4,7 @@
 #include "FS.h"
 #include "SPIFFS.h"
 #include "index_html.h"
+#include <ctime>
 
 #define CAM_PIN_PWDN 32
 #define CAM_PIN_RESET -1 //software reset will be performed
@@ -23,6 +24,9 @@
 #define CAM_PIN_HREF 23
 #define CAM_PIN_PCLK 22
 
+// Определение пина кнопки
+#define BUTTON_PIN 2  // Меняем на GPIO2, который часто используется для кнопок
+
 // Настройки Wi-Fi
 // const char* ssid = "Н's Galaxy A22";
 // const char* password = "lublukolu";
@@ -37,13 +41,30 @@ void startCameraServer();
 
 int g_photoIndex = 0;
 
+// Функция генерации случайного хеша для имени файла
+String generateRandomHash() {
+  static const char alphanum[] = "0123456789abcdef";
+  String hash = "";
+  for (int i = 0; i < 8; i++) {
+    hash += alphanum[random(0, sizeof(alphanum) - 1)];
+  }
+  return hash;
+}
+
 void savePhotoToSPIFFS(const uint8_t* data, size_t len, String& filename) {
   if (!SPIFFS.exists("/photos")) SPIFFS.mkdir("/photos");
-  filename = "/photos/photo_" + String(g_photoIndex++) + ".png";
+  
+  // Используем случайный хеш для имени файла
+  String hash = generateRandomHash();
+  filename = "/photos/img_" + hash + ".png";
+  
   File file = SPIFFS.open(filename, FILE_WRITE);
   if (file) {
     file.write(data, len);
     file.close();
+    Serial.println("Photo saved: " + filename);
+  } else {
+    Serial.println("Failed to open file for writing");
   }
 }
 
@@ -161,6 +182,10 @@ void setup() {
     return;
   }
 
+  // Инициализация пина кнопки
+  pinMode(BUTTON_PIN, INPUT_PULLUP);
+  Serial.println("Button initialized on GPIO " + String(BUTTON_PIN));
+
   // --- Find last photo index ---
   if (SPIFFS.exists("/photos")) {
     File root = SPIFFS.open("/photos");
@@ -185,6 +210,65 @@ void setup() {
 }
 
 void loop() {
+  // Проверяем нажатие аппаратной кнопки для захвата фото
+  static bool lastButtonState = HIGH;
+  static unsigned long lastDebounceTime = 0;
+  static unsigned long lastDebugTime = 0;
+  static bool buttonPressed = false;
+  
+  bool buttonState = digitalRead(BUTTON_PIN);
+  
+  // Если состояние кнопки изменилось, сбрасываем таймер дребезга
+  if (buttonState != lastButtonState) {
+    Serial.printf("Button state changed: %s -> %s\n", 
+      lastButtonState == HIGH ? "HIGH" : "LOW", 
+      buttonState == HIGH ? "HIGH" : "LOW");
+    lastDebounceTime = currentTime;
+  }
+  
+  // Проверяем, прошло ли достаточно времени после последнего изменения состояния
+  if ((currentTime - lastDebounceTime) > 100) {  // Увеличил время антидребезга до 100 мс
+    // Если состояние стабилизировалось и кнопка нажата (LOW)
+    if (buttonState == LOW && !buttonPressed) {
+      buttonPressed = true;
+      Serial.println("Button pressed - taking photo");
+      
+      // Включаем вспышку, если это необходимо
+      // digitalWrite(4, HIGH); // Раскомментируйте для использования вспышки
+      
+      camera_fb_t *fb = esp_camera_fb_get();
+      if (fb) {
+        // Сгенерировать PNG данные
+        uint8_t* pngData = NULL;
+        size_t pngSize = 0;
+        generatePNGWithPaletteToRam(fb, &pngData, &pngSize);
+        
+        if (pngData && pngSize > 0) {
+          // Сохраняем фото в SPIFFS
+          String filename;
+          savePhotoToSPIFFS(pngData, pngSize, filename);
+          free(pngData); // Освобождаем память
+        } else {
+          Serial.println("Failed to generate PNG data");
+        }
+        
+        esp_camera_fb_return(fb);
+      } else {
+        Serial.println("Camera capture failed");
+      }
+      
+      // Выключаем вспышку
+      // digitalWrite(4, LOW); // Раскомментируйте для использования вспышки
+    }
+    else if (buttonState == HIGH) {
+      // Сбрасываем флаг нажатия только когда кнопка отпущена
+      buttonPressed = false;
+    }
+  }
+  
+  lastButtonState = buttonState;
+  
+  // Обработка HTTP запросов
   WiFiClient client = server.available();
   if (!client) return;
 
