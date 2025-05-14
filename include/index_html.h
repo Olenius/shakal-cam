@@ -23,6 +23,7 @@ const char* getGalleryHTML() {
                     --background-color: #000;
                     --text-color: #fff;
                     --accent-color: #444;
+                    --danger-color: #ff3b30;
                 }
                 body, html {
                     margin: 0;
@@ -39,6 +40,10 @@ const char* getGalleryHTML() {
                 }
                 .header h1 {
                     margin: 0;
+                }
+                .header-buttons {
+                    display: flex;
+                    gap: 10px;
                 }
                 .button {
                     background-color: var(--text-color);
@@ -59,6 +64,9 @@ const char* getGalleryHTML() {
                 .button:active {
                     box-shadow: 0 0 0 0 rgba(0,0,0,0.3);
                     transform: translate(5px,5px);
+                }
+                .button-danger {
+                    background-color: var(--danger-color);
                 }
                 .storage-info {
                     background-color: var(--accent-color);
@@ -99,6 +107,31 @@ const char* getGalleryHTML() {
                     display: flex;
                     justify-content: space-between;
                 }
+                .modal {
+                    display: none;
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    width: 100%;
+                    height: 100%;
+                    background-color: rgba(0, 0, 0, 0.7);
+                    z-index: 100;
+                    align-items: center;
+                    justify-content: center;
+                }
+                .modal-content {
+                    background-color: var(--background-color);
+                    border: 2px solid var(--text-color);
+                    padding: 20px;
+                    max-width: 400px;
+                    text-align: center;
+                }
+                .modal-buttons {
+                    margin-top: 20px;
+                    display: flex;
+                    justify-content: center;
+                    gap: 10px;
+                }
                 @media (max-width: 600px) {
                     .gallery-container {
                         grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
@@ -107,19 +140,42 @@ const char* getGalleryHTML() {
                         flex-direction: column;
                         gap: 10px;
                     }
+                    .header-buttons {
+                        width: 100%;
+                        flex-direction: column;
+                    }
+                    .button {
+                        width: 100%;
+                        text-align: center;
+                    }
                 }
             </style>
         </head>
         <body>
             <div class="header">
                 <h1>Shakal Gallery</h1>
-                <a href="/" class="button">Back to Camera</a>
+                <div class="header-buttons">
+                    <button id="deleteAllBtn" class="button button-danger">Delete All Photos</button>
+                    <a href="/" class="button">Back to Camera</a>
+                </div>
             </div>
             <div id="storage-info" class="storage-info">
                 <!-- Storage info will be inserted here by the ESP32 -->
             </div>
             <div class="gallery-container" id="gallery">
                 <!-- Thumbnails will be inserted here by JavaScript -->
+            </div>
+            
+            <!-- Confirmation Modal -->
+            <div id="confirmModal" class="modal">
+                <div class="modal-content">
+                    <h2>Delete All Photos</h2>
+                    <p>Are you sure you want to delete all photos? This action cannot be undone.</p>
+                    <div class="modal-buttons">
+                        <button id="cancelDeleteBtn" class="button">Cancel</button>
+                        <button id="confirmDeleteBtn" class="button button-danger">Delete All</button>
+                    </div>
+                </div>
             </div>
 
             <script>
@@ -163,8 +219,60 @@ const char* getGalleryHTML() {
                     }
                 }
                 
-                // Load gallery on page load
-                document.addEventListener('DOMContentLoaded', loadGallery);
+                // Delete all photos function
+                async function deleteAllPhotos() {
+                    try {
+                        const response = await fetch('/delete-all-photos', {
+                            method: 'POST'
+                        });
+                        
+                        const data = await response.json();
+                        if (data.success) {
+                            // Reload the gallery to show the updated (empty) state
+                            loadGallery();
+                            alert(`Successfully deleted ${data.deletedFiles} photos`);
+                        } else {
+                            alert('Failed to delete photos');
+                        }
+                    } catch (error) {
+                        console.error('Error deleting photos:', error);
+                        alert('Error deleting photos. Please try again.');
+                    }
+                }
+                
+                // Modal control
+                document.addEventListener('DOMContentLoaded', function() {
+                    const modal = document.getElementById('confirmModal');
+                    const deleteAllBtn = document.getElementById('deleteAllBtn');
+                    const cancelDeleteBtn = document.getElementById('cancelDeleteBtn');
+                    const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
+                    
+                    // Show modal when delete button is clicked
+                    deleteAllBtn.addEventListener('click', function() {
+                        modal.style.display = 'flex';
+                    });
+                    
+                    // Hide modal when cancel is clicked
+                    cancelDeleteBtn.addEventListener('click', function() {
+                        modal.style.display = 'none';
+                    });
+                    
+                    // Delete all photos when confirmed
+                    confirmDeleteBtn.addEventListener('click', function() {
+                        modal.style.display = 'none';
+                        deleteAllPhotos();
+                    });
+                    
+                    // Close modal if clicked outside
+                    window.addEventListener('click', function(event) {
+                        if (event.target === modal) {
+                            modal.style.display = 'none';
+                        }
+                    });
+                    
+                    // Load gallery on page load
+                    loadGallery();
+                });
             </script>
         </body>
         </html>

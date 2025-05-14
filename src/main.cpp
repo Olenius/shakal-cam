@@ -395,6 +395,59 @@ void loop() {
     sendPhotoListJSON(client);
     client.stop();
     return;
+  } else if (request.indexOf("POST /delete-all-photos") >= 0) {
+    // Handle delete all photos request
+    Serial.println("Deleting all photos...");
+    
+    // Step 1: Collect all png filenames in an array
+    const int MAX_FILES = 100; // Maximum number of files to delete
+    String filesToDelete[MAX_FILES];
+    int fileCount = 0;
+    
+    File root = SPIFFS.open("/photos");
+    
+    // First collect all filenames
+    File file = root.openNextFile();
+    while (file && fileCount < MAX_FILES) {
+      String name = file.name();
+      if (name.endsWith(".png")) {
+        // Store the full path to each file
+        filesToDelete[fileCount] = name;
+        fileCount++;
+      }
+      file = root.openNextFile();
+    }
+    
+    // Close all open files and the directory
+    root.close();
+    
+    // Step 2: Delete each file one by one
+    int deletedCount = 0;
+    
+    Serial.printf("Found %d files to delete\n", fileCount);
+    
+    // Simple direct deletion approach
+    for (int i = 0; i < fileCount; i++) {
+      String fullPath = filesToDelete[i];
+      Serial.println("Trying to delete: " + fullPath);
+      
+      SPIFFS.remove("/photos/" + filesToDelete[i]);
+      deletedCount++;
+    }
+    
+    // Send simple JSON response
+    client.println("HTTP/1.1 200 OK");
+    client.println("Content-Type: application/json");
+    client.println("Access-Control-Allow-Origin: *");
+    client.println("Connection: close");
+    client.print("Content-Length: ");
+    
+    String response = "{\"success\":true,\"deletedFiles\":" + String(deletedCount) + "}";
+    client.println(response.length());
+    client.println();
+    client.print(response);
+    client.stop();
+    return;
   } else if (request.indexOf("GET /flash") >= 0) {
     static bool flashState = false;
     flashState = !flashState;
