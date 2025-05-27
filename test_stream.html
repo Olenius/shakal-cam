@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>ESP32-CAM Stream Test</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        text-align: center;
+        margin: 50px;
+      }
+      #stream {
+        border: 2px solid #333;
+        max-width: 100%;
+        height: auto;
+      }
+      .controls {
+        margin: 20px 0;
+      }
+      button {
+        padding: 10px 20px;
+        margin: 5px;
+        font-size: 16px;
+        cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>ESP32-CAM Video Stream Test</h1>
+
+    <div class="controls">
+      <button onclick="startStream()">Start Stream</button>
+      <button onclick="stopStream()">Stop Stream</button>
+      <button onclick="capturePhoto()">Capture Photo</button>
+      <button onclick="rebootESP32()">Reboot ESP32</button>
+    </div>
+
+    <div>
+      <img id="stream" src="" alt="Video stream will appear here" />
+    </div>
+
+    <div id="status"></div>
+
+    <script>
+      // Replace with your ESP32-CAM IP address
+      const ESP32_IP = "192.168.31.222"; // Change this to your ESP32's IP
+
+      function startStream() {
+        const streamImg = document.getElementById("stream");
+        streamImg.src = `http://${ESP32_IP}/stream`;
+        document.getElementById("status").innerHTML = "Stream started";
+      }
+
+      function stopStream() {
+        const streamImg = document.getElementById("stream");
+        streamImg.src = "";
+        document.getElementById("status").innerHTML = "Stream stopped";
+      }
+
+      function capturePhoto() {
+        window.open(`http://${ESP32_IP}/capture`, "_blank");
+      }
+
+      function rebootESP32() {
+        if (confirm("Are you sure you want to reboot the ESP32?")) {
+          fetch(`http://${ESP32_IP}/reboot`, {
+            method: "POST",
+            mode: "no-cors",
+          })
+            .then(() => {
+              document.getElementById("status").innerHTML =
+                "ESP32 rebooting...";
+            })
+            .catch((err) => {
+              document.getElementById("status").innerHTML =
+                "Reboot request sent";
+            });
+        }
+      }
+
+      // Auto-start stream when page loads
+      window.onload = function () {
+        document.getElementById(
+          "status"
+        ).innerHTML = `Ready! Update ESP32_IP to your device's IP address (currently set to ${ESP32_IP})`;
+      };
+    </script>
+  </body>
+</html>

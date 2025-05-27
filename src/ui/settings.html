@@ -6,159 +6,170 @@
     <title>Shakal Cam Settings</title>
     <style>
       :root {
-          --background-color: #000;
-          --text-color: #fff;
-          --accent-color: #444;
-          --success-color: #28a745;
+        --background-color: #000;
+        --text-color: #fff;
+        --accent-color: #444;
+        --success-color: #28a745;
       }
-      body, html {
-          margin: 0;
-          padding: 0;
-          background-color: var(--background-color);
-          color: var(--text-color);
-          font-family: monospace;
+      body,
+      html {
+        margin: 0;
+        padding: 0;
+        background-color: var(--background-color);
+        color: var(--text-color);
+        font-family: monospace;
       }
       .header {
-          padding: 20px;
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
+        padding: 20px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
       }
       .header h1 {
-          margin: 0;
+        margin: 0;
       }
       .header-buttons {
-          display: flex;
-          gap: 10px;
+        display: flex;
+        gap: 10px;
       }
       .button {
-          background-color: var(--text-color);
-          color: var(--background-color);
-          border: none;
-          padding: 10px 20px;
-          font-size: 18px;
-          font-weight: 700;
-          cursor: pointer;
-          font-family: monospace;
-          text-decoration: none;
-          display: inline-block;
-          box-shadow: 5px 5px 0 0 rgba(0,0,0,0.2);
+        background-color: var(--text-color);
+        color: var(--background-color);
+        border: none;
+        padding: 10px 20px;
+        font-size: 18px;
+        font-weight: 700;
+        cursor: pointer;
+        font-family: monospace;
+        text-decoration: none;
+        display: inline-block;
+        box-shadow: 5px 5px 0 0 rgba(0, 0, 0, 0.2);
       }
       .button:hover {
-          box-shadow: 4px 4px 0 0 rgba(0,0,0,0.3);
+        box-shadow: 4px 4px 0 0 rgba(0, 0, 0, 0.3);
       }
       .button:active {
-          box-shadow: 0 0 0 0 rgba(0,0,0,0.3);
-          transform: translate(5px,5px);
+        box-shadow: 0 0 0 0 rgba(0, 0, 0, 0.3);
+        transform: translate(5px, 5px);
       }
       .button-success {
-          background-color: var(--success-color);
-          color: #fff;
+        background-color: var(--success-color);
+        color: #fff;
       }
       .settings-container {
-          padding: 20px;
-          max-width: 800px;
-          margin: 0 auto;
+        padding: 20px;
+        max-width: 800px;
+        margin: 0 auto;
       }
       .settings-section {
-          margin-bottom: 30px;
-          background-color: var(--accent-color);
-          padding: 20px;
-          border-radius: 4px;
+        margin-bottom: 30px;
+        background-color: var(--accent-color);
+        padding: 20px;
+        border-radius: 4px;
       }
       .settings-section h2 {
-          margin-top: 0;
-          margin-bottom: 15px;
-          border-bottom: 1px solid var(--text-color);
-          padding-bottom: 10px;
+        margin-top: 0;
+        margin-bottom: 15px;
+        border-bottom: 1px solid var(--text-color);
+        padding-bottom: 10px;
       }
       .palette-container {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 10px;
-          margin-bottom: 20px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-bottom: 20px;
       }
       .color-picker {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          gap: 5px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 5px;
       }
       .color-block {
-          width: 60px;
-          height: 60px;
-          border: 2px solid var(--text-color);
-          position: relative;
-          cursor: pointer;
+        width: 60px;
+        height: 60px;
+        border: 2px solid var(--text-color);
+        position: relative;
+        cursor: pointer;
       }
       .color-input {
-          opacity: 0;
-          position: absolute;
-          top: 0;
-          left: 0;
-          width: 100%;
-          height: 100%;
-          cursor: pointer;
+        opacity: 0;
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        cursor: pointer;
       }
       .preview-section {
-          margin-top: 20px;
-          display: flex;
-          justify-content: center;
-          flex-direction: column;
-          align-items: center;
+        margin-top: 20px;
+        display: flex;
+        justify-content: center;
+        flex-direction: column;
+        align-items: center;
       }
       .preview-gradient {
-          width: 100%;
-          height: 60px;
-          background: linear-gradient(to right, #000, #222, #444, #666, #888, #aaa, #ccc, #fff);
-          margin-bottom: 20px;
+        width: 100%;
+        height: 60px;
+        background: linear-gradient(
+          to right,
+          #000,
+          #222,
+          #444,
+          #666,
+          #888,
+          #aaa,
+          #ccc,
+          #fff
+        );
+        margin-bottom: 20px;
       }
       .preview-color-values {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 10px;
-          font-size: 12px;
-          margin-top: 10px;
-          width: 100%;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        font-size: 12px;
+        margin-top: 10px;
+        width: 100%;
       }
       .preview-color-value {
-          background: rgba(255,255,255,0.1);
-          padding: 5px;
-          border-radius: 3px;
+        background: rgba(255, 255, 255, 0.1);
+        padding: 5px;
+        border-radius: 3px;
       }
       .notification {
-          position: fixed;
-          top: 20px;
-          right: 20px;
-          padding: 10px 20px;
-          background-color: var(--success-color);
-          color: white;
-          border-radius: 4px;
-          box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-          transform: translateY(-100px);
-          opacity: 0;
-          transition: transform 0.3s, opacity 0.3s;
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        padding: 10px 20px;
+        background-color: var(--success-color);
+        color: white;
+        border-radius: 4px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+        transform: translateY(-100px);
+        opacity: 0;
+        transition: transform 0.3s, opacity 0.3s;
       }
       .notification.show {
-          transform: translateY(0);
-          opacity: 1;
+        transform: translateY(0);
+        opacity: 1;
       }
       @media (max-width: 600px) {
-          .header {
-              flex-direction: column;
-              gap: 10px;
-          }
-          .header-buttons {
-              width: 100%;
-              flex-direction: column;
-          }
-          .button {
-              width: 100%;
-              text-align: center;
-          }
-          .palette-container {
-              justify-content: center;
-          }
+        .header {
+          flex-direction: column;
+          gap: 10px;
+        }
+        .header-buttons {
+          width: 100%;
+          flex-direction: column;
+        }
+        .button {
+          width: 100%;
+          text-align: center;
+        }
+        .palette-container {
+          justify-content: center;
+        }
       }
     </style>
   </head>
@@ -192,6 +203,49 @@
           </div>
         </div>
       </div>
+
+      <div class="settings-section">
+        <h2>Block Size Settings</h2>
+        <p>
+          Adjust the pixelation level (1 = no pixelation, 16 = maximum
+          pixelation):
+        </p>
+
+        <div
+          style="
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 20px;
+          "
+        >
+          <label for="blockSizeSlider" style="min-width: 100px"
+            >Block Size:</label
+          >
+          <input
+            type="range"
+            id="blockSizeSlider"
+            min="1"
+            max="16"
+            value="2"
+            style="
+              flex: 1;
+              height: 30px;
+              background: var(--accent-color);
+              outline: none;
+            "
+          />
+          <span id="blockSizeValue" style="min-width: 30px; font-weight: bold"
+            >2</span
+          >
+        </div>
+
+        <div style="display: flex; gap: 10px">
+          <button id="resetBlockSizeBtn" class="button">
+            Reset Block Size
+          </button>
+        </div>
+      </div>
     </div>
 
     <div id="notification" class="notification">
@@ -201,203 +255,338 @@
     <script>
       // Global palette data
       let palette = [
-          {r: 13, g: 43, b: 69, a: 255},  // Dark Blue
-          {r: 32, g: 60, b: 86, a: 255},  // Blue
-          {r: 84, g: 78, b: 104, a: 255}, // Purple
-          {r: 141, g: 105, b: 122, a: 255}, // Lilac
-          {r: 208, g: 129, b: 89, a: 255}, // Orange
-          {r: 255, g: 170, b: 94, a: 255}, // Light Orange
-          {r: 255, g: 212, b: 163, a: 255}, // Beige
-          {r: 255, g: 236, b: 214, a: 255}  // Light Beige
+        { r: 13, g: 43, b: 69, a: 255 }, // Dark Blue
+        { r: 32, g: 60, b: 86, a: 255 }, // Blue
+        { r: 84, g: 78, b: 104, a: 255 }, // Purple
+        { r: 141, g: 105, b: 122, a: 255 }, // Lilac
+        { r: 208, g: 129, b: 89, a: 255 }, // Orange
+        { r: 255, g: 170, b: 94, a: 255 }, // Light Orange
+        { r: 255, g: 212, b: 163, a: 255 }, // Beige
+        { r: 255, g: 236, b: 214, a: 255 }, // Light Beige
       ];
+
+      // Global block size data
+      let blockSize = 2;
 
       // Initialize the palette UI
       function initPalette() {
-          const container = document.getElementById('palette-container');
-          container.innerHTML = '';
+        const container = document.getElementById("palette-container");
+        container.innerHTML = "";
 
-          // Create color picker for each palette entry
-          palette.forEach((color, index) => {
-              const colorBlock = document.createElement('div');
-              colorBlock.className = 'color-picker';
+        // Create color picker for each palette entry
+        palette.forEach((color, index) => {
+          const colorBlock = document.createElement("div");
+          colorBlock.className = "color-picker";
 
-              const block = document.createElement('div');
-              block.className = 'color-block';
-              block.style.backgroundColor = `rgba(${color.r}, ${color.g}, ${color.b}, ${color.a/255})`;
+          const block = document.createElement("div");
+          block.className = "color-block";
+          block.style.backgroundColor = `rgba(${color.r}, ${color.g}, ${
+            color.b
+          }, ${color.a / 255})`;
 
-              const input = document.createElement('input');
-              input.type = 'color';
-              input.className = 'color-input';
-              input.value = rgbToHex(color.r, color.g, color.b);
-              input.dataset.index = index;
-              input.addEventListener('input', handleColorChange);
+          const input = document.createElement("input");
+          input.type = "color";
+          input.className = "color-input";
+          input.value = rgbToHex(color.r, color.g, color.b);
+          input.dataset.index = index;
+          input.addEventListener("input", handleColorChange);
 
-              block.appendChild(input);
-              colorBlock.appendChild(block);
-              container.appendChild(colorBlock);
-          });
+          block.appendChild(input);
+          colorBlock.appendChild(block);
+          container.appendChild(colorBlock);
+        });
 
-          updatePreviewGradient();
-          updateColorValues();
+        updatePreviewGradient();
+        updateColorValues();
       }
 
       // Handle color change from color picker
       function handleColorChange(e) {
-          const index = parseInt(e.target.dataset.index);
-          const hexColor = e.target.value;
-          const rgb = hexToRgb(hexColor);
+        const index = parseInt(e.target.dataset.index);
+        const hexColor = e.target.value;
+        const rgb = hexToRgb(hexColor);
 
-          palette[index] = {
-              r: rgb.r,
-              g: rgb.g,
-              b: rgb.b,
-              a: 255
-          };
+        palette[index] = {
+          r: rgb.r,
+          g: rgb.g,
+          b: rgb.b,
+          a: 255,
+        };
 
-          // Update the color block
-          const block = e.target.parentElement;
-          block.style.backgroundColor = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 1)`;
+        // Update the color block
+        const block = e.target.parentElement;
+        block.style.backgroundColor = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 1)`;
 
-          updatePreviewGradient();
-          updateColorValues();
+        updatePreviewGradient();
+        updateColorValues();
       }
 
       // Convert RGB to HEX
       function rgbToHex(r, g, b) {
-          return '#' + [r, g, b].map(x => {
+        return (
+          "#" +
+          [r, g, b]
+            .map((x) => {
               const hex = x.toString(16);
-              return hex.length === 1 ? '0' + hex : hex;
-          }).join('');
+              return hex.length === 1 ? "0" + hex : hex;
+            })
+            .join("")
+        );
       }
 
       // Convert HEX to RGB
       function hexToRgb(hex) {
-          const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-          return result ? {
+        const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+        return result
+          ? {
               r: parseInt(result[1], 16),
               g: parseInt(result[2], 16),
-              b: parseInt(result[3], 16)
-          } : null;
+              b: parseInt(result[3], 16),
+            }
+          : null;
       }
 
       // Update the preview gradient
       function updatePreviewGradient() {
-          const gradient = document.getElementById('preview-gradient');
-          const stops = palette.map((color, index) => {
-              const percent = (index / (palette.length - 1)) * 100;
-              return `rgba(${color.r}, ${color.g}, ${color.b}, ${color.a/255}) ${percent}%`;
-          }).join(', ');
+        const gradient = document.getElementById("preview-gradient");
+        const stops = palette
+          .map((color, index) => {
+            const percent = (index / (palette.length - 1)) * 100;
+            return `rgba(${color.r}, ${color.g}, ${color.b}, ${
+              color.a / 255
+            }) ${percent}%`;
+          })
+          .join(", ");
 
-          gradient.style.background = `linear-gradient(to right, ${stops})`;
+        gradient.style.background = `linear-gradient(to right, ${stops})`;
       }
 
       // Update the color values display
       function updateColorValues() {
-          const container = document.getElementById('preview-color-values');
-          container.innerHTML = '';
+        const container = document.getElementById("preview-color-values");
+        container.innerHTML = "";
 
-          palette.forEach((color, index) => {
-              const div = document.createElement('div');
-              div.className = 'preview-color-value';
-              div.textContent = `${index}: RGB(${color.r}, ${color.g}, ${color.b})`;
-              div.style.color = getBrightness(color) < 128 ? '#fff' : '#000';
-              div.style.backgroundColor = `rgba(${color.r}, ${color.g}, ${color.b}, ${color.a/255})`;
-              container.appendChild(div);
-          });
+        palette.forEach((color, index) => {
+          const div = document.createElement("div");
+          div.className = "preview-color-value";
+          div.textContent = `${index}: RGB(${color.r}, ${color.g}, ${color.b})`;
+          div.style.color = getBrightness(color) < 128 ? "#fff" : "#000";
+          div.style.backgroundColor = `rgba(${color.r}, ${color.g}, ${
+            color.b
+          }, ${color.a / 255})`;
+          container.appendChild(div);
+        });
       }
 
       // Calculate perceived brightness (for text contrast)
       function getBrightness(color) {
-          return Math.sqrt(
-              0.299 * (color.r * color.r) +
-              0.587 * (color.g * color.g) +
-              0.114 * (color.b * color.b)
-          );
+        return Math.sqrt(
+          0.299 * (color.r * color.r) +
+            0.587 * (color.g * color.g) +
+            0.114 * (color.b * color.b)
+        );
       }
 
       // Save the palette to the device
       async function savePalette() {
-          try {
-              const response = await fetch('/save-palette', {
-                  method: 'POST',
-                  headers: {
-                      'Content-Type': 'application/json',
-                  },
-                  body: JSON.stringify({ palette })
-              });
+        try {
+          const response = await fetch("/save-palette", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ palette }),
+          });
 
-              if (response.ok) {
-                  showNotification('Settings saved successfully!');
-              } else {
-                  showNotification('Failed to save settings', 'error');
-              }
-          } catch (error) {
-              console.error('Error saving palette:', error);
-              showNotification('Error saving settings', 'error');
+          if (response.ok) {
+            showNotification("Palette saved successfully!");
+          } else {
+            showNotification("Failed to save palette", "error");
           }
+        } catch (error) {
+          console.error("Error saving palette:", error);
+          showNotification("Error saving palette", "error");
+        }
+      }
+
+      // Save all settings (palette and block size)
+      async function saveAllSettings() {
+        try {
+          // Save palette
+          const paletteResponse = await fetch("/save-palette", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ palette }),
+          });
+
+          // Save block size
+          const blockSizeResponse = await fetch("/save-block-size", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ blockSize }),
+          });
+
+          if (paletteResponse.ok && blockSizeResponse.ok) {
+            showNotification("All settings saved successfully!");
+          } else {
+            showNotification("Failed to save some settings", "error");
+          }
+        } catch (error) {
+          console.error("Error saving settings:", error);
+          showNotification("Error saving settings", "error");
+        }
       }
 
       // Reset palette to default values
       async function resetPalette() {
-          try {
-              const response = await fetch('/reset-palette', {
-                  method: 'POST'
-              });
+        try {
+          const response = await fetch("/reset-palette", {
+            method: "POST",
+          });
 
-              if (response.ok) {
-                  // Update the local palette with the response
-                  const data = await response.json();
-                  if (data.palette) {
-                      palette = data.palette;
-                      initPalette(); // Refresh UI
-                      showNotification('Palette reset to default values');
-                  }
-              } else {
-                  showNotification('Failed to reset palette', 'error');
-              }
-          } catch (error) {
-              console.error('Error resetting palette:', error);
-              showNotification('Error resetting palette', 'error');
+          if (response.ok) {
+            // Update the local palette with the response
+            const data = await response.json();
+            if (data.palette) {
+              palette = data.palette;
+              initPalette(); // Refresh UI
+              showNotification("Palette reset to default values");
+            }
+          } else {
+            showNotification("Failed to reset palette", "error");
           }
+        } catch (error) {
+          console.error("Error resetting palette:", error);
+          showNotification("Error resetting palette", "error");
+        }
       }
 
       // Load the current palette from the device
       async function loadPalette() {
-          try {
-              const response = await fetch('/get-palette');
-              if (response.ok) {
-                  const data = await response.json();
-                  if (data.palette) {
-                      palette = data.palette;
-                  }
-              }
-          } catch (error) {
-              console.error('Error loading palette:', error);
+        try {
+          const response = await fetch("/get-palette");
+          if (response.ok) {
+            const data = await response.json();
+            if (data.palette) {
+              palette = data.palette;
+            }
           }
+        } catch (error) {
+          console.error("Error loading palette:", error);
+        }
 
-          initPalette();
+        initPalette();
+      }
+
+      // Initialize the block size UI
+      function initBlockSize() {
+        const slider = document.getElementById("blockSizeSlider");
+        const valueDisplay = document.getElementById("blockSizeValue");
+
+        slider.value = blockSize;
+        valueDisplay.textContent = blockSize;
+
+        slider.addEventListener("input", (e) => {
+          blockSize = parseInt(e.target.value);
+          valueDisplay.textContent = blockSize;
+        });
+      }
+
+      // Save the block size to the device
+      async function saveBlockSize() {
+        try {
+          const response = await fetch("/save-block-size", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ blockSize }),
+          });
+
+          if (response.ok) {
+            showNotification("Block size saved successfully!");
+          } else {
+            showNotification("Failed to save block size", "error");
+          }
+        } catch (error) {
+          console.error("Error saving block size:", error);
+          showNotification("Error saving block size", "error");
+        }
+      }
+
+      // Reset block size to default value
+      async function resetBlockSize() {
+        try {
+          const response = await fetch("/reset-block-size", {
+            method: "POST",
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            if (data.blockSize !== undefined) {
+              blockSize = data.blockSize;
+              initBlockSize(); // Refresh UI
+              showNotification("Block size reset to default value");
+            }
+          } else {
+            showNotification("Failed to reset block size", "error");
+          }
+        } catch (error) {
+          console.error("Error resetting block size:", error);
+          showNotification("Error resetting block size", "error");
+        }
+      }
+
+      // Load the current block size from the device
+      async function loadBlockSize() {
+        try {
+          const response = await fetch("/get-block-size");
+          if (response.ok) {
+            const data = await response.json();
+            if (data.blockSize !== undefined) {
+              blockSize = data.blockSize;
+            }
+          }
+        } catch (error) {
+          console.error("Error loading block size:", error);
+        }
+
+        initBlockSize();
       }
 
       // Show notification
-      function showNotification(message, type = 'success') {
-          const notification = document.getElementById('notification');
-          notification.textContent = message;
-          notification.style.backgroundColor = type === 'success' ? 'var(--success-color)' : 'var(--danger-color)';
-          notification.classList.add('show');
+      function showNotification(message, type = "success") {
+        const notification = document.getElementById("notification");
+        notification.textContent = message;
+        notification.style.backgroundColor =
+          type === "success" ? "var(--success-color)" : "var(--danger-color)";
+        notification.classList.add("show");
 
-          setTimeout(() => {
-              notification.classList.remove('show');
-          }, 3000);
+        setTimeout(() => {
+          notification.classList.remove("show");
+        }, 3000);
       }
 
       // Attach event listeners
-      document.addEventListener('DOMContentLoaded', () => {
-          // Load palette first
-          loadPalette();
+      document.addEventListener("DOMContentLoaded", () => {
+        // Load settings first
+        loadPalette();
+        loadBlockSize();
 
-          // Setup button event listeners
-          document.getElementById('savePaletteBtn').addEventListener('click', savePalette);
-          document.getElementById('resetPaletteBtn').addEventListener('click', resetPalette);
+        // Setup button event listeners
+        document
+          .getElementById("savePaletteBtn")
+          .addEventListener("click", saveAllSettings);
+        document
+          .getElementById("resetPaletteBtn")
+          .addEventListener("click", resetPalette);
+        document
+          .getElementById("resetBlockSizeBtn")
+          .addEventListener("click", resetBlockSize);
       });
     </script>
   </body>
