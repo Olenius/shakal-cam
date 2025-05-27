@@ -5,6 +5,16 @@
 #include "SPIFFS.h"
 #include "index_html.h"
 #include <ctime>
+#include "img_converters.h"
+
+// ============================================================================
+// OUTPUT FORMAT CONFIGURATION
+// ============================================================================
+// To change output format, modify g_useJpegOutput in setup() function:
+// - true  = JPEG output (faster, ~20-50ms encoding vs ~400ms for PNG)
+// - false = PNG output (slower, but with 8-color palette)
+// You can also toggle at runtime using POST /toggle-format endpoint
+// ============================================================================
 
 // Camera pin definitions
 #define CAM_PIN_PWDN 32
@@ -31,13 +41,18 @@
 #define FLASH_LED 4       // Flash LED on GPIO4
 
 // Wi-Fi settings
-const char* ssid = "shkubu";
-const char* password = "18061994";
+// const char* ssid = "shkubu";
+// const char* password = "18061994";
 // Alternative Wi-Fi configurations (commented out)
 // const char* ssid = "Н's Galaxy A22";
 // const char* password = "lublukolu";
 // const char* ssid = "iPhone NS";
 // const char* password = "lublukolu";
+// const char* ssid = "Xiaomi_C909";
+// const char* password = "9654215720";
+const char* ssid = "FUCKWAR";
+const char* password = "istand4PEACE";
+
 
 // HTTP server on port 80
 WiFiServer server(80);
@@ -45,6 +60,12 @@ WiFiServer server(80);
 // Global variables
 int g_photoIndex = 0;
 const unsigned long DEBOUNCE_DELAY = 100;  // Button debounce delay in milliseconds
+
+// Streaming constants
+#define PART_BOUNDARY "123456789000000000000987654321"
+static const char* STREAM_CONTENT_TYPE = "multipart/x-mixed-replace;boundary=" PART_BOUNDARY;
+static const char* STREAM_BOUNDARY = "\r\n--" PART_BOUNDARY "\r\n";
+static const char* STREAM_PART = "Content-Type: image/jpeg\r\nContent-Length: %u\r\n\r\n";
 
 /**
  * Generates a random 8-character hexadecimal hash for filenames
@@ -82,9 +103,10 @@ void blinkLedTwice() {
 void savePhotoToSPIFFS(const uint8_t* data, size_t len, String& filename) {
   if (!SPIFFS.exists("/photos")) SPIFFS.mkdir("/photos");
   
-  // Use random hash for filename
+  // Use random hash for filename with appropriate extension
   String hash = generateRandomHash();
-  filename = "/photos/img_" + hash + ".png";
+  String extension = g_useJpegOutput ? ".jpg" : ".png";
+  filename = "/photos/img_" + hash + extension;
   
   File file = SPIFFS.open(filename, FILE_WRITE);
   if (file) {
@@ -114,7 +136,12 @@ void sendPhotoFromSPIFFS(WiFiClient& client, const String& filename) {
   }
   
   client.println("HTTP/1.1 200 OK");
-  client.println("Content-Type: image/png");
+  // Set content type based on file extension
+  if (filename.endsWith(".jpg") || filename.endsWith(".jpeg")) {
+    client.println("Content-Type: image/jpeg");
+  } else {
+    client.println("Content-Type: image/png");
+  }
   client.println("Connection: close");
   client.println();
   
@@ -149,7 +176,7 @@ void sendGalleryPage(WiFiClient& client) {
   File file = root.openNextFile();
   while (file) {
     String name = file.name();
-    if (name.endsWith(".png")) {
+    if (name.endsWith(".png") || name.endsWith(".jpg")) {
       size_t fsize = file.size();
       client.print("<div><a href='/photo/");
       client.print(name);
@@ -181,7 +208,7 @@ void sendPhotoListJSON(WiFiClient& client) {
   bool isFirst = true;
   while (file) {
     String name = file.name();
-    if (name.endsWith(".png")) {
+    if (name.endsWith(".png") || name.endsWith(".jpg")) {
       if (!isFirst) {
         json += ",";
       }
@@ -212,6 +239,79 @@ void sendPhotoListJSON(WiFiClient& client) {
   client.print(json);
 }
 
+/**
+ * Handles video streaming using multipart/x-mixed-replace
+ * Continuously sends JPEG frames to create a video stream
+ * 
+ * @param client WiFiClient to stream video to
+ */
+void handleVideoStream(WiFiClient& client) {
+  Serial.println("Starting video stream");
+  
+  // Send HTTP headers for multipart streaming
+  client.println("HTTP/1.1 200 OK");
+  client.println("Access-Control-Allow-Origin: *");
+  client.println("Access-Control-Allow-Headers: Origin, X-Requested-With, Content-Type, Accept");
+  client.println("Access-Control-Allow-Methods: GET,POST,OPTIONS,DELETE,PUT");
+  client.print("Content-Type: ");
+  client.println(STREAM_CONTENT_TYPE);
+  client.println();
+  
+  // Stream frames continuously
+  while (client.connected()) {
+    camera_fb_t *fb = esp_camera_fb_get();
+    if (!fb) {
+      Serial.println("Camera capture failed during streaming");
+      break;
+    }
+    
+    // Convert grayscale to JPEG if needed
+    uint8_t *jpg_buf = NULL;
+    size_t jpg_len = 0;
+    bool jpeg_converted = false;
+    
+    if (fb->format != PIXFORMAT_JPEG) {
+      // Convert frame to JPEG
+      jpeg_converted = frame2jpg(fb, 80, &jpg_buf, &jpg_len);
+      if (!jpeg_converted) {
+        Serial.println("JPEG conversion failed");
+        esp_camera_fb_return(fb);
+        break;
+      }
+    } else {
+      jpg_buf = fb->buf;
+      jpg_len = fb->len;
+    }
+    
+    // Send multipart boundary
+    client.print(STREAM_BOUNDARY);
+    
+    // Send part header with content length
+    char part_buf[64];
+    size_t hlen = snprintf(part_buf, 64, STREAM_PART, jpg_len);
+    client.write((uint8_t*)part_buf, hlen);
+    
+    // Send JPEG data
+    client.write(jpg_buf, jpg_len);
+    
+    // Clean up
+    if (jpeg_converted && jpg_buf) {
+      free(jpg_buf);
+    }
+    esp_camera_fb_return(fb);
+    
+    // Small delay to control frame rate
+    delay(30); // ~33 FPS max
+    
+    // Check if client is still connected
+    if (!client.connected()) {
+      break;
+    }
+  }
+  
+  Serial.println("Video stream ended");
+}
+
 void setup() {
   Serial.begin(115200);
   
@@ -225,8 +325,8 @@ void setup() {
 
   Serial.println();
   Serial.println("WiFi connected");
-  Serial.print("ESP32-CAM IP address: ");
-  Serial.println(WiFi.localIP());
+  Serial.print("ESP32-CAM server is up at:");
+  Serial.println("http://" + WiFi.localIP().toString());
 
   // Configure camera
   camera_config_t config = {
@@ -309,6 +409,24 @@ void setup() {
     Serial.println("Color palette loaded from SPIFFS");
   }
 
+  // Load block size from SPIFFS or use default
+  if (!loadBlockSizeFromSPIFFS()) {
+    Serial.println("Using default block size: " + String(g_blockSize));
+  } else {
+    Serial.println("Block size loaded from SPIFFS: " + String(g_blockSize));
+  }
+
+  // ============================================================================
+  // SET OUTPUT FORMAT HERE - Change this line to switch between JPEG and PNG
+  // ============================================================================
+  g_useJpegOutput = false;  // Set to true for JPEG (faster), false for PNG (with palette)
+  Serial.printf("Output format set to: %s\n", g_useJpegOutput ? "JPEG" : "PNG");
+  if (g_useJpegOutput) {
+    Serial.println("JPEG mode: Faster encoding (~20-50ms) but no color palette");
+  } else {
+    Serial.println("PNG mode: Slower encoding (~400ms) but with 8-color palette");
+  }
+
   // Start HTTP server
   server.begin();
   Serial.println("HTTP server started");
@@ -345,18 +463,54 @@ void loop() {
       // Second capture for actual use
       fb = esp_camera_fb_get();
       if (fb) {
-        // Generate PNG data with the current palette
-        uint8_t* pngData = NULL;
-        size_t pngSize = 0;
-        generatePNGWithPaletteToRam(fb, &pngData, &pngSize);
+        unsigned long transformStartTime = millis();
         
-        if (pngData && pngSize > 0) {
-          // Save photo to filesystem
-          String filename;
-          savePhotoToSPIFFS(pngData, pngSize, filename);
-          free(pngData); // Free allocated memory
+        if (g_useJpegOutput) {
+          Serial.println("Button capture - Using JPEG output format");
+          // Generate JPEG data with pixelation
+          uint8_t* jpegData = NULL;
+          size_t jpegSize = 0;
+          generateJPEGWithPixelationToRam(fb, &jpegData, &jpegSize);
+          
+          unsigned long transformEndTime = millis();
+          Serial.printf("Button capture - Image transformation (pixelation + JPEG encoding) took: %lu ms\n", transformEndTime - transformStartTime);
+          
+          if (jpegData && jpegSize > 0) {
+            unsigned long saveStartTime = millis();
+            // Save photo to filesystem
+            String filename;
+            savePhotoToSPIFFS(jpegData, jpegSize, filename);
+            unsigned long saveEndTime = millis();
+            Serial.printf("Button capture - File save took: %lu ms\n", saveEndTime - saveStartTime);
+            Serial.printf("Button capture - Total processing time: %lu ms\n", saveEndTime - transformStartTime);
+            
+            free(jpegData); // Free allocated memory
+          } else {
+            Serial.println("Failed to generate JPEG data");
+          }
         } else {
-          Serial.println("Failed to generate PNG data");
+          Serial.println("Button capture - Using PNG output format");
+          // Generate PNG data with the current palette
+          uint8_t* pngData = NULL;
+          size_t pngSize = 0;
+          generatePNGWithPaletteToRam(fb, &pngData, &pngSize);
+          
+          unsigned long transformEndTime = millis();
+          Serial.printf("Button capture - Image transformation (pixelation + PNG encoding) took: %lu ms\n", transformEndTime - transformStartTime);
+          
+          if (pngData && pngSize > 0) {
+            unsigned long saveStartTime = millis();
+            // Save photo to filesystem
+            String filename;
+            savePhotoToSPIFFS(pngData, pngSize, filename);
+            unsigned long saveEndTime = millis();
+            Serial.printf("Button capture - File save took: %lu ms\n", saveEndTime - saveStartTime);
+            Serial.printf("Button capture - Total processing time: %lu ms\n", saveEndTime - transformStartTime);
+            
+            free(pngData); // Free allocated memory
+          } else {
+            Serial.println("Failed to generate PNG data");
+          }
         }
         
         esp_camera_fb_return(fb);
@@ -398,6 +552,8 @@ void loop() {
   // Route handling
   if (request.indexOf("GET /capture") >= 0) {
     // Capture and send photo without saving
+    unsigned long captureStartTime = millis();
+    
     camera_fb_t *fb = esp_camera_fb_get();
     if (!fb) {
       Serial.println("Camera capture failed");
@@ -409,22 +565,41 @@ void loop() {
       return;
     }
     
+    unsigned long captureEndTime = millis();
+    Serial.printf("Camera capture took: %lu ms\n", captureEndTime - captureStartTime);
     Serial.printf("Got frame: %dx%d, format: %d\n", fb->width, fb->height, fb->format);
 
-    // Send PNG directly to client without saving to file
+    // Send image directly to client without saving to file
     client.println("HTTP/1.1 200 OK");
-    client.println("Content-Type: image/png");
+    if (g_useJpegOutput) {
+      client.println("Content-Type: image/jpeg");
+    } else {
+      client.println("Content-Type: image/png");
+    }
     client.println("Access-Control-Allow-Origin: *");
     client.println("Access-Control-Allow-Methods: GET, POST");
     client.println("Access-Control-Allow-Headers: Content-Type");
     client.println("Connection: close");
     client.println();
     
-    sendNewPNGWithPalette(fb, client);
+    unsigned long transformStartTime = millis();
+    if (g_useJpegOutput) {
+      Serial.println("Using JPEG output format");
+      sendNewJPEGWithPixelation(fb, client);
+    } else {
+      Serial.println("Using PNG output format");
+      sendNewPNGWithPalette(fb, client);
+    }
+    unsigned long transformEndTime = millis();
+    
+    Serial.printf("Image transformation (pixelation + %s encoding) took: %lu ms\n", 
+                  g_useJpegOutput ? "JPEG" : "PNG", transformEndTime - transformStartTime);
+    Serial.printf("Total processing time: %lu ms\n", transformEndTime - captureStartTime);
+    
     esp_camera_fb_return(fb);
 
     client.stop();
-    Serial.println("PNG sent to client (no file save)");
+    Serial.printf("%s sent to client (no file save)\n", g_useJpegOutput ? "JPEG" : "PNG");
     return;
   } else if (request.indexOf("GET /gallery") >= 0) {
     // Gallery page
@@ -447,7 +622,7 @@ void loop() {
     // Delete all photos
     Serial.println("Deleting all photos...");
     
-    // Step 1: Collect all PNG filenames in an array
+    // Step 1: Collect all filenames in an array
     const int MAX_FILES = 100; // Maximum number of files to delete
     String filesToDelete[MAX_FILES];
     int fileCount = 0;
@@ -458,7 +633,7 @@ void loop() {
     File file = root.openNextFile();
     while (file && fileCount < MAX_FILES) {
       String name = file.name();
-      if (name.endsWith(".png")) {
+      if (name.endsWith(".png") || name.endsWith(".jpg")) {
         filesToDelete[fileCount] = name;
         fileCount++;
       }
@@ -590,6 +765,191 @@ void loop() {
     client.println(paletteJson.length());
     client.println();
     client.print(paletteJson);
+    client.stop();
+    return;
+  } else if (request.indexOf("GET /get-block-size") >= 0) {
+    // Get current block size as JSON
+    String blockSizeJson = getBlockSizeJSON();
+    client.println("HTTP/1.1 200 OK");
+    client.println("Content-Type: application/json");
+    client.println("Access-Control-Allow-Origin: *");
+    client.println("Connection: close");
+    client.print("Content-Length: ");
+    client.println(blockSizeJson.length());
+    client.println();
+    client.print(blockSizeJson);
+    client.stop();
+    return;
+  } else if (request.indexOf("POST /save-block-size") >= 0) {
+    // Save block size settings
+    String jsonData = "";
+    while (client.available()) {
+      char c = client.read();
+      jsonData += c;
+    }
+    
+    bool success = false;
+    if (jsonData.length() > 0) {
+      success = updateBlockSizeFromJSON(jsonData);
+      if (success) {
+        saveBlockSizeToSPIFFS();
+      }
+    }
+    
+    client.println("HTTP/1.1 200 OK");
+    client.println("Content-Type: application/json");
+    client.println("Access-Control-Allow-Origin: *");
+    client.println("Connection: close");
+    client.print("Content-Length: ");
+    
+    String response = "{\"success\":" + String(success ? "true" : "false") + "}";
+    client.println(response.length());
+    client.println();
+    client.print(response);
+    client.stop();
+    return;
+  } else if (request.indexOf("POST /reset-block-size") >= 0) {
+    // Reset block size to default
+    resetBlockSizeToDefault();
+    String blockSizeJson = getBlockSizeJSON();
+    
+    client.println("HTTP/1.1 200 OK");
+    client.println("Content-Type: application/json");
+    client.println("Access-Control-Allow-Origin: *");
+    client.println("Connection: close");
+    client.print("Content-Length: ");
+    client.println(blockSizeJson.length());
+    client.println();
+    client.print(blockSizeJson);
+    client.stop();
+    return;
+  } else if (request.indexOf("POST /reboot") >= 0) {
+    // Reboot ESP32 system
+    Serial.println("Reboot requested via POST endpoint");
+    
+    client.println("HTTP/1.1 200 OK");
+    client.println("Content-Type: application/json");
+    client.println("Access-Control-Allow-Origin: *");
+    client.println("Connection: close");
+    client.print("Content-Length: ");
+    
+    String response = "{\"success\":true,\"message\":\"Rebooting ESP32...\"}";
+    client.println(response.length());
+    client.println();
+    client.print(response);
+    client.stop();
+    
+    // Small delay to ensure response is sent before reboot
+    delay(100);
+    
+    // Trigger ESP32 system restart
+    ESP.restart();
+    return;
+  } else if (request.indexOf("GET /stream") >= 0) {
+    // Video streaming endpoint
+    handleVideoStream(client);
+    client.stop();
+    return;
+  } else if (request.indexOf("GET /performance-test") >= 0) {
+    // Performance test endpoint - captures image and returns timing data as JSON
+    unsigned long testStartTime = millis();
+    
+    camera_fb_t *fb = esp_camera_fb_get();
+    if (!fb) {
+      client.println("HTTP/1.1 500 Internal Server Error");
+      client.println("Content-Type: application/json");
+      client.println("Access-Control-Allow-Origin: *");
+      client.println("Connection: close");
+      client.println();
+      client.println("{\"error\":\"Camera capture failed\"}");
+      client.stop();
+      return;
+    }
+    
+    unsigned long captureTime = millis() - testStartTime;
+    int imageWidth = fb->width;
+    int imageHeight = fb->height;
+    
+    // Test PNG transformation to RAM
+    unsigned long pngTransformStart = millis();
+    uint8_t* pngData = NULL;
+    size_t pngSize = 0;
+    generatePNGWithPaletteToRam(fb, &pngData, &pngSize);
+    unsigned long pngTransformEnd = millis();
+    
+    if (pngData) {
+      free(pngData);
+    }
+    
+    // Test JPEG transformation to RAM
+    unsigned long jpegTransformStart = millis();
+    uint8_t* jpegData = NULL;
+    size_t jpegSize = 0;
+    generateJPEGWithPixelationToRam(fb, &jpegData, &jpegSize);
+    unsigned long jpegTransformEnd = millis();
+    
+    if (jpegData) {
+      free(jpegData);
+    }
+    
+    esp_camera_fb_return(fb);
+    
+    unsigned long totalTestTime = millis() - testStartTime;
+    
+    // Create JSON response with timing data
+    String jsonResponse = "{";
+    jsonResponse += "\"capture_time_ms\":" + String(captureTime) + ",";
+    jsonResponse += "\"png_transform_time_ms\":" + String(pngTransformEnd - pngTransformStart) + ",";
+    jsonResponse += "\"jpeg_transform_time_ms\":" + String(jpegTransformEnd - jpegTransformStart) + ",";
+    jsonResponse += "\"current_format\":\"" + String(g_useJpegOutput ? "jpeg" : "png") + "\",";
+    jsonResponse += "\"total_test_time_ms\":" + String(totalTestTime) + ",";
+    jsonResponse += "\"image_width\":" + String(imageWidth) + ",";
+    jsonResponse += "\"image_height\":" + String(imageHeight) + ",";
+    jsonResponse += "\"block_size\":" + String(g_blockSize) + ",";
+    jsonResponse += "\"timestamp\":" + String(millis());
+    jsonResponse += "}";
+    
+    client.println("HTTP/1.1 200 OK");
+    client.println("Content-Type: application/json");
+    client.println("Access-Control-Allow-Origin: *");
+    client.println("Connection: close");
+    client.print("Content-Length: ");
+    client.println(jsonResponse.length());
+    client.println();
+    client.print(jsonResponse);
+    client.stop();
+    return;
+  } else if (request.indexOf("POST /toggle-format") >= 0) {
+    // Toggle between JPEG and PNG output format
+    g_useJpegOutput = !g_useJpegOutput;
+    
+    String response = "{\"success\":true,\"current_format\":\"" + String(g_useJpegOutput ? "jpeg" : "png") + "\"}";
+    
+    client.println("HTTP/1.1 200 OK");
+    client.println("Content-Type: application/json");
+    client.println("Access-Control-Allow-Origin: *");
+    client.println("Connection: close");
+    client.print("Content-Length: ");
+    client.println(response.length());
+    client.println();
+    client.print(response);
+    
+    Serial.printf("Output format toggled to: %s\n", g_useJpegOutput ? "JPEG" : "PNG");
+    
+    client.stop();
+    return;
+  } else if (request.indexOf("GET /get-format") >= 0) {
+    // Get current output format
+    String response = "{\"current_format\":\"" + String(g_useJpegOutput ? "jpeg" : "png") + "\"}";
+    
+    client.println("HTTP/1.1 200 OK");
+    client.println("Content-Type: application/json");
+    client.println("Access-Control-Allow-Origin: *");
+    client.println("Connection: close");
+    client.print("Content-Length: ");
+    client.println(response.length());
+    client.println();
+    client.print(response);
     client.stop();
     return;
   } else {
